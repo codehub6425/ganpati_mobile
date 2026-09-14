@@ -90,6 +90,26 @@ const PROBLEMS = [
 
 const empty = { name: "", phone: "", brand: "", problem: "", note: "" };
 
+const SHOP_MOBILE = "9782932128";
+const SHOP_TEL = `+91${SHOP_MOBILE}`;
+const SHOP_TEL_LABEL = "+91 97829 32128";
+const SHOP_WA = `91${SHOP_MOBILE}`;
+
+function whatsappHref(text) {
+  return `https://wa.me/${SHOP_WA}?text=${encodeURIComponent(text)}`;
+}
+
+function repairWhatsappMessage({ brand = "", problem = "", name = "", note = "" } = {}) {
+  const lines = ["Hi Ganpati Mobile Point,"];
+  if (problem) lines.push(`I need help with ${problem.toLowerCase()} repair.`);
+  else lines.push("I need a phone repair.");
+  if (brand) lines.push(`Brand: ${brand}.`);
+  if (note) lines.push(`Details: ${note}.`);
+  if (name) lines.push(`My name is ${name}.`);
+  lines.push("Please share the price and time. Thank you.");
+  return lines.join(" ");
+}
+
 function readLocation() {
   return new Promise((resolve) => {
     if (!navigator.geolocation) {
@@ -170,6 +190,24 @@ export default function RepairForm() {
   }
 
   const extra = saved?.note ? ` · ${saved.note}` : "";
+  const selectedWhatsapp = whatsappHref(
+    repairWhatsappMessage({
+      brand: values.brand,
+      problem: values.problem,
+      name: values.name,
+      note: values.note,
+    })
+  );
+  const savedWhatsapp = saved
+    ? whatsappHref(
+        repairWhatsappMessage({
+          brand: saved.brand,
+          problem: saved.problem,
+          name: saved.name,
+          note: saved.note,
+        })
+      )
+    : whatsappHref(repairWhatsappMessage());
 
   return (
     <>
@@ -184,9 +222,14 @@ export default function RepairForm() {
             <p className="brand-tag">Your mobile care partner</p>
           </div>
         </div>
-        <a className="call-now" href="tel:+919627788800">
-          Call now
-        </a>
+        <div className="header-actions">
+          <a className="wa-now" href={whatsappHref(repairWhatsappMessage())} target="_blank" rel="noopener noreferrer">
+            WhatsApp
+          </a>
+          <a className="call-now" href={`tel:${SHOP_TEL}`}>
+            Call now
+          </a>
+        </div>
       </header>
 
       <main className="page">
@@ -197,8 +240,26 @@ export default function RepairForm() {
             Phone problem? <span>Don't worry.</span> We'll fix it.
           </h1>
           <p className="hero-copy">
-            Scan done. Pick your brand and problem — we will call you back.
+            Scan done. Pick your brand and problem — we will call you back. Or tap a problem to WhatsApp us with the message already filled.
           </p>
+          <div className="wa-quick" aria-label="WhatsApp a repair request">
+            {PROBLEMS.filter((item) => item.value !== "Other").map((item) => (
+              <a
+                key={item.value}
+                className="wa-quick-link"
+                href={whatsappHref(
+                  repairWhatsappMessage({
+                    brand: values.brand,
+                    problem: item.label || item.value,
+                  })
+                )}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {item.label || item.value}
+              </a>
+            ))}
+          </div>
         </section>
 
         <div className="layout">
@@ -316,6 +377,14 @@ export default function RepairForm() {
                   <button className="submit pulse" type="submit" disabled={busy}>
                     {busy ? "Sending..." : "Request a callback"}
                   </button>
+                  <a
+                    className="submit ghost wa-form-btn"
+                    href={selectedWhatsapp}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    WhatsApp this request
+                  </a>
                 </form>
               </section>
             ) : (
@@ -332,15 +401,10 @@ export default function RepairForm() {
                   {extra}
                 </p>
                 <div className="thanks-actions">
-                  <a className="submit" href="tel:+919627788800">
+                  <a className="submit" href={`tel:${SHOP_TEL}`}>
                     Call the shop
                   </a>
-                  <a
-                    className="submit ghost"
-                    href="https://wa.me/919627788800"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
+                  <a className="submit ghost" href={savedWhatsapp} target="_blank" rel="noopener noreferrer">
                     WhatsApp
                   </a>
                 </div>
@@ -402,8 +466,8 @@ export default function RepairForm() {
         <p className="footer-name">Ganpati Mobile Point</p>
         <p>Nirman Nagar, Jaipur, Rajasthan 302019</p>
         <p className="footer-links">
-          <a href="tel:+919627788800">+91 96277 88800</a>
-          <a href="https://wa.me/919627788800" target="_blank" rel="noopener noreferrer">
+          <a href={`tel:${SHOP_TEL}`}>{SHOP_TEL_LABEL}</a>
+          <a href={whatsappHref(repairWhatsappMessage())} target="_blank" rel="noopener noreferrer">
             Chat on WhatsApp
           </a>
         </p>
