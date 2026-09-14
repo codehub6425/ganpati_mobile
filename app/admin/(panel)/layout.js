@@ -8,6 +8,7 @@ export const viewport = {
   initialScale: 1,
   maximumScale: 1,
   viewportFit: "cover",
+  themeColor: "#0f1728",
 };
 
 export default async function AdminPanelLayout({ children }) {

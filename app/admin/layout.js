@@ -1,0 +1,36 @@
+import AdminPwaPrompt from "../components/AdminPwaPrompt";
+import { getBasePath } from "@/lib/basePath";
+import "../admin.css";
+
+const BASE_PATH = getBasePath();
+
+export const metadata = {
+  title: "Admin | Ganpati Mobile Point",
+  applicationName: "Ganpati Admin",
+  manifest: `${BASE_PATH}/admin/manifest`,
+  appleWebApp: {
+    capable: true,
+    title: "GMP Admin",
+    statusBarStyle: "black-translucent",
+  },
+  icons: {
+    apple: `${BASE_PATH}/admin/icons/apple-touch-icon.png`,
+  },
+};
+
+export const viewport = {
+  themeColor: "#0f1728",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  viewportFit: "cover",
+};
+
+export default function AdminLayout({ children }) {
+  return (
+    <>
+      {children}
+      <AdminPwaPrompt />
+    </>
+  );
+}
