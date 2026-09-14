@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta
+      name="description"
+      content="Tell Ganpati Mobile Point your phone problem in 20 seconds. We will call you back."
+    />
+    <title>Repair Request | Ganpati Mobile Point</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="page-bg" aria-hidden="true"></div>
+    <header class="site-header">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">G</span>
+        <div>
+          <p class="brand-name">Ganpati Mobile Point</p>
+          <p class="brand-tag">Your mobile care partner</p>
+        </div>
+      </div>
+      <a class="call-now" href="tel:+919627788800">Call now</a>
+    </header>
+
+    <main class="page">
+      <div class="hero-phones" aria-hidden="true"></div>
+      <section class="hero">
+        <p class="eyebrow">Jaipur · Broken today, fixed tomorrow</p>
+        <h1>Phone problem? <span>Don't worry.</span> We'll fix it.</h1>
+        <p class="hero-copy">
+          Scan done. Pick your brand and problem — we will call you back.
+        </p>
+      </section>
+
+      <div class="layout">
+        <div class="layout-main">
+          <section class="panel" id="form-panel" aria-labelledby="form-title">
+            <div class="panel-head">
+              <p class="step-pill">Takes 20 seconds</p>
+              <h2 id="form-title">Request a callback</h2>
+              <p class="panel-lead">No login. We call you with a price and time.</p>
+            </div>
+
+            <form id="repair-form" novalidate>
+              <div class="field-row">
+                <label class="field">
+                  <span>Your name</span>
+                  <input
+                    id="name"
+                    name="name"
+                    type="text"
+                    autocomplete="name"
+                    maxlength="60"
+                    placeholder="e.g. Rahul Sharma"
+                    required
+                  />
+                  <small class="error" data-error-for="name"></small>
+                </label>
+
+                <label class="field">
+                  <span>Mobile number</span>
+                  <span class="phone-wrap">
+                    <span class="phone-prefix">+91</span>
+                    <input
+                      id="phone"
+                      name="phone"
+                      type="tel"
+                      inputmode="numeric"
+                      autocomplete="tel"
+                      maxlength="10"
+                      placeholder="10-digit mobile number"
+                      required
+                    />
+                  </span>
+                  <small class="error" data-error-for="phone"></small>
+                </label>
+              </div>
+
+              <fieldset class="field chips-field">
+                <legend>Select your phone brand</legend>
+                <div class="choice-grid brand-grid" role="radiogroup" aria-label="Phone brand">
+                  <label class="choice">
+                    <input type="radio" name="brand" value="Apple" required />
+                    <span><b>Apple</b></span>
+                  </label>
+                  <label class="choice">
+                    <input type="radio" name="brand" value="Samsung" />
+                    <span><b>Samsung</b></span>
+                  </label>
+                  <label class="choice">
+                    <input type="radio" name="brand" value="Xiaomi" />
+                    <span><b>Xiaomi</b></span>
+                  </label>
+                  <label class="choice">
+                    <input type="radio" name="brand" value="Vivo" />
+                    <span><b>Vivo</b></span>
+                  </label>
+                  <label class="choice">
+                    <input type="radio" name="brand" value="Oppo" />
+                    <span><b>Oppo</b></span>
+                  </label>
+                  <label class="choice">
+                    <input type="radio" name="brand" value="Realme" />
+                    <span><b>Realme</b></span>
+                  </label>
+                  <label class="choice">
+                    <input type="radio" name="brand" value="OnePlus" />
+                    <span><b>OnePlus</b></span>
+                  </label>
+                  <label class="choice">
+                    <input type="radio" name="brand" value="Motorola" />
+                    <span><b>Motorola</b></span>
+                  </label>
+                  <label class="choice">
+                    <input type="radio" name="brand" value="Other" />
+                    <span><b>Other</b></span>
+                  </label>
+                </div>
+                <small class="error" data-error-for="brand"></small>
+              </fieldset>
+
+              <fieldset class="field chips-field">
+                <legend>What is the problem?</legend>
+                <div class="choice-grid problem-grid" role="radiogroup" aria-label="Problem type">
+                  <label class="choice problem">
+                    <input type="radio" name="problem" value="Screen" required />
+                    <span>
+                      <i aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none">
+                          <rect x="7" y="3" width="10" height="18" rx="2" stroke="currentColor" stroke-width="1.8"/>
+                          <path d="M9 8l6 8M15 8l-6 8" stroke="currentColor" stroke-width="1.6"/>
+                        </svg>
+                      </i>
+                      <b>Screen</b>
+                      <small>Cracked or dead display</small>
+                    </span>
+                  </label>
+                  <label class="choice problem">
+                    <input type="radio" name="problem" value="Battery" />
+                    <span>
+                      <i aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none">
+                          <rect x="3" y="8" width="16" height="8" rx="2" stroke="currentColor" stroke-width="1.8"/>
+                          <path d="M19 11h2v2h-2M7 10v4" stroke="currentColor" stroke-width="1.8"/>
+                        </svg>
+                      </i>
+                      <b>Battery</b>
+                      <small>Drains fast or won't hold</small>
+                    </span>
+                  </label>
+                  <label class="choice problem">
+                    <input type="radio" name="problem" value="Charging" />
+                    <span>
+                      <i aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none">
+                          <path d="M13 2L6 14h6l-1 8 7-12h-6l1-8z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                        </svg>
+                      </i>
+                      <b>Charging</b>
+                      <small>Port, cable or no power</small>
+                    </span>
+                  </label>
+                  <label class="choice problem">
+                    <input type="radio" name="problem" value="Speaker/Mic" />
+                    <span>
+                      <i aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none">
+                          <path d="M4 10v4h4l5 4V6L8 10H4z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                          <path d="M16 9a4 4 0 010 6" stroke="currentColor" stroke-width="1.8"/>
+                        </svg>
+                      </i>
+                      <b>Speaker / Mic</b>
+                      <small>No sound or can't hear you</small>
+                    </span>
+                  </label>
+                  <label class="choice problem">
+                    <input type="radio" name="problem" value="Camera" />
+                    <span>
+                      <i aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none">
+                          <rect x="3" y="6" width="18" height="13" rx="2" stroke="currentColor" stroke-width="1.8"/>
+                          <circle cx="12" cy="12.5" r="3.2" stroke="currentColor" stroke-width="1.8"/>
+                          <path d="M8 6l1.4-2h5.2L16 6" stroke="currentColor" stroke-width="1.8"/>
+                        </svg>
+                      </i>
+                      <b>Camera</b>
+                      <small>Blurry, black or cracked</small>
+                    </span>
+                  </label>
+                  <label class="choice problem">
+                    <input type="radio" name="problem" value="Software" />
+                    <span>
+                      <i aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none">
+                          <circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8"/>
+                          <path d="M12 8v4l2.5 2.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        </svg>
+                      </i>
+                      <b>Software</b>
+                      <small>Hang, update or unlock</small>
+                    </span>
+                  </label>
+                  <label class="choice problem">
+                    <input type="radio" name="problem" value="Other" />
+                    <span>
+                      <i aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none">
+                          <circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8"/>
+                          <path d="M12 8v5M12 16.5h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        </svg>
+                      </i>
+                      <b>Other</b>
+                      <small>Tell us in the note below</small>
+                    </span>
+                  </label>
+                </div>
+                <small class="error" data-error-for="problem"></small>
+              </fieldset>
+
+              <label class="field">
+                <span>Phone model or extra detail <em>(optional)</em></span>
+                <input
+                  id="note"
+                  name="note"
+                  type="text"
+                  maxlength="120"
+                  placeholder="e.g. iPhone 13, glass cracked yesterday"
+                />
+              </label>
+
+              <button class="submit pulse" type="submit">
+                Request a callback
+              </button>
+            </form>
+          </section>
+
+          <section class="panel thanks" id="thanks-panel" hidden>
+            <div class="thanks-icon" aria-hidden="true">✓</div>
+            <h2>Thank you</h2>
+            <p class="panel-lead">
+              We have your request. Our team will call you shortly.
+            </p>
+            <p class="thanks-summary" id="thanks-summary"></p>
+            <div class="thanks-actions">
+              <a class="submit" href="tel:+919627788800">Call the shop</a>
+              <a
+                class="submit ghost"
+                href="https://wa.me/919627788800"
+                target="_blank"
+                rel="noopener noreferrer"
+                >WhatsApp</a
+              >
+            </div>
+            <p class="thanks-offer">Your Rs 100 off offer is saved with this request.</p>
+          </section>
+        </div>
+
+        <aside class="promo" aria-label="Offers and shop highlights">
+          <article class="promo-card offer-card">
+            <p class="promo-kicker">QR customer offer</p>
+            <p class="promo-price">Rs 100 off</p>
+            <p>Auto-applied on this repair request. No coupon code needed.</p>
+          </article>
+
+          <article class="promo-card">
+            <p class="promo-kicker">Why people come here</p>
+            <ul class="promo-list">
+              <li>
+                <strong>1-hour repair</strong>
+                <span>Selected jobs finished the same visit.</span>
+              </li>
+              <li>
+                <strong>Genuine parts</strong>
+                <span>Quality screens, batteries and charging ports.</span>
+              </li>
+              <li>
+                <strong>All popular brands</strong>
+                <span>Apple, Samsung, Xiaomi, Vivo, Oppo and more.</span>
+              </li>
+              <li>
+                <strong>1000+ customers</strong>
+                <span>Trusted neighbourhood service in Nirman Nagar.</span>
+              </li>
+            </ul>
+          </article>
+
+          <article class="promo-card">
+            <p class="promo-kicker">How it works</p>
+            <ol class="steps">
+              <li><b>1</b> Fill this short form</li>
+              <li><b>2</b> We call you back</li>
+              <li><b>3</b> Bring the phone and get it fixed</li>
+            </ol>
+          </article>
+        </aside>
+      </div>
+    </main>
+
+    <footer class="site-footer">
+      <p class="footer-name">Ganpati Mobile Point</p>
+      <p>Nirman Nagar, Jaipur, Rajasthan 302019</p>
+      <p class="footer-links">
+        <a href="tel:+919627788800">+91 96277 88800</a>
+        <a
+          href="https://wa.me/919627788800"
+          target="_blank"
+          rel="noopener noreferrer"
+          >Chat on WhatsApp</a
+        >
+      </p>
+    </footer>
+
+    <script src="script.js"></script>
+  </body>
+</html>
