@@ -266,9 +266,12 @@ export default function RepairForm() {
         <div className="layout">
           <div className="layout-main">
             {!saved ? (
-              <section className="panel" aria-labelledby="form-title">
+              <section className="panel form-panel" aria-labelledby="form-title">
                 <div className="panel-head">
-                  <p className="step-pill">Takes 20 seconds</p>
+                  <div className="form-head-row">
+                    <p className="step-pill">Takes 20 seconds</p>
+                    <p className="form-kicker">Repair form</p>
+                  </div>
                   <h2 id="form-title">Request a callback</h2>
                   <p className="panel-lead">No login. We call you with a price and time.</p>
                 </div>
