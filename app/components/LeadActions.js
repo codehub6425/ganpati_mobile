@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { formatPhone, telHref } from "@/lib/format";
+import { apiUrl } from "@/lib/basePath";
 
 const OPTIONS = [
   { id: "pending", label: "Pending" },
@@ -120,7 +121,7 @@ export default function LeadActions({ id, status, phone, name = "", followup = {
     setBusy(next);
     setMenuOpen(false);
     try {
-      const res = await fetch(`/api/admin/leads/${id}`, {
+      const res = await fetch(apiUrl(`/api/admin/leads/${id}`), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: next }),
@@ -146,7 +147,7 @@ export default function LeadActions({ id, status, phone, name = "", followup = {
     };
     setBusy("follow");
     try {
-      const res = await fetch(`/api/admin/leads/${id}`, {
+      const res = await fetch(apiUrl(`/api/admin/leads/${id}`), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ followup: payload }),

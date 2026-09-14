@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { apiUrl } from "@/lib/basePath";
 import "../../admin.css";
 
 export default function AdminLoginPage() {
@@ -11,18 +12,13 @@ export default function AdminLoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  
-  const BASE_PATH =
-  process.env.NODE_ENV === "production"
-    ? "/ganpati-mobile"
-    : "";
 
   async function onSubmit(event) {
     event.preventDefault();
     setError("");
     setBusy(true);
     try {
-      const response = await fetch(`${BASE_PATH}/api/admin/login`, {
+      const response = await fetch(apiUrl("/api/admin/login"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),

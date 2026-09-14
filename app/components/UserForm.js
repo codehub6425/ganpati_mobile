@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
+import { apiUrl } from "@/lib/basePath";
 
 export default function UserForm() {
   const router = useRouter();
@@ -23,7 +24,7 @@ export default function UserForm() {
     setError("");
     setBusy(true);
     try {
-      const res = await fetch("/api/admin/users", {
+      const res = await fetch(apiUrl("/api/admin/users"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, email, password, role: "staff" }),

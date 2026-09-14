@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { apiUrl } from "@/lib/basePath";
 
 const BRANDS = [
   "Apple",
@@ -169,7 +170,7 @@ export default function RepairForm() {
         setLocation(coords);
         setLocationNote("Location ready. We will show distance to the shop.");
       }
-      const response = await fetch("/api/leads", {
+      const response = await fetch(apiUrl("/api/leads"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...values, ...(coords || {}) }),

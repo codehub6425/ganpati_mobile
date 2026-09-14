@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
+import { apiUrl } from "@/lib/basePath";
 
 const NAV = [
   { href: "/admin", label: "Dashboard", icon: "home" },
@@ -25,7 +26,7 @@ export default function AdminShell({ children, user = null }) {
   const [open, setOpen] = useState(false);
 
   async function logout() {
-    await fetch("/api/admin/logout", { method: "POST" });
+    await fetch(apiUrl("/api/admin/logout"), { method: "POST" });
     router.push("/admin/login");
     router.refresh();
   }
