@@ -2273,3 +2273,9 @@
     display: none;
   }
 }
+
+@media (display-mode: standalone) {
+  .pwa-modal {
+    display: none !important;
+  }
+}

@@ -18,7 +18,7 @@ export default function RootLayout({ children }) {
         />
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{if(location.pathname.indexOf('/admin')===-1)return;var b=location.pathname.indexOf('/ganpati-mobile')===0?'/ganpati-mobile':'';window.__gmpPwa={deferred:null};window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();window.__gmpPwa.deferred=e;window.dispatchEvent(new Event('gmp-pwa-ready'));});if('serviceWorker'in navigator){navigator.serviceWorker.register(b+'/admin/sw.js',{scope:b+'/admin/'}).catch(function(){})}}catch(e){}})();`,
+            __html: `(function(){try{if(location.pathname.indexOf('/admin')===-1)return;var b=location.pathname.indexOf('/ganpati-mobile')===0?'/ganpati-mobile':'';window.__gmpPwa=window.__gmpPwa||{deferred:null};window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();window.__gmpPwa.deferred=e;window.dispatchEvent(new Event('gmp-pwa-ready'));});window.addEventListener('appinstalled',function(){try{localStorage.setItem('gmp-admin-pwa-installed','1');localStorage.setItem('gmp-admin-pwa-dismissed','1')}catch(e){}});if('serviceWorker'in navigator){navigator.serviceWorker.register(b+'/admin/sw.js',{scope:b+'/admin/',updateViaCache:'none'}).catch(function(){})}}catch(e){}})();`,
           }}
         />
       </head>
