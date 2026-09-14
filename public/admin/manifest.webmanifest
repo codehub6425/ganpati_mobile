@@ -3,7 +3,7 @@
   "name": "Ganpati Admin",
   "short_name": "GMP Admin",
   "description": "Ganpati Mobile Point admin and staff app",
-  "start_url": "./login",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "background_color": "#0f1728",

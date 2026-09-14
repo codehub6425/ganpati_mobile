@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { loginWithPassword, setAdminSession } from "@/lib/auth";
+import { applySessionCookie, createSessionToken, loginWithPassword } from "@/lib/auth";
 
 export async function POST(request) {
   const body = await request.json().catch(() => ({}));
@@ -14,6 +14,7 @@ export async function POST(request) {
     );
   }
 
-  await setAdminSession(user);
-  return NextResponse.json({ ok: true, role: user.role });
+  const response = NextResponse.json({ ok: true, role: user.role });
+  applySessionCookie(response.cookies, createSessionToken(user));
+  return response;
 }

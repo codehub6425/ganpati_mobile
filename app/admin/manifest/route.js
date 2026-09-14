@@ -8,7 +8,7 @@ export function GET() {
     name: "Ganpati Admin",
     short_name: "GMP Admin",
     description: "Ganpati Mobile Point admin and staff app",
-    start_url: `${base}/admin/login`,
+    start_url: `${base}/admin`,
     scope: `${base}/admin/`,
     display: "standalone",
     background_color: "#0f1728",
