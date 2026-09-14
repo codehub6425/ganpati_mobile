@@ -16,6 +16,11 @@ export default function RootLayout({ children }) {
           href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
           rel="stylesheet"
         />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{if(location.pathname.indexOf('/admin')===-1)return;var b=location.pathname.indexOf('/ganpati-mobile')===0?'/ganpati-mobile':'';window.__gmpPwa={deferred:null};window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();window.__gmpPwa.deferred=e;window.dispatchEvent(new Event('gmp-pwa-ready'));});if('serviceWorker'in navigator){navigator.serviceWorker.register(b+'/admin/sw.js',{scope:b+'/admin/'}).catch(function(){})}}catch(e){}})();`,
+          }}
+        />
       </head>
       <body>{children}</body>
     </html>

@@ -6,6 +6,9 @@ import { usePathname } from "next/navigation";
 const DISMISS_KEY = "gmp-admin-pwa-dismissed";
 
 function getBasePath() {
+  if (typeof window !== "undefined" && window.location.pathname.startsWith("/ganpati-mobile")) {
+    return "/ganpati-mobile";
+  }
   return process.env.NODE_ENV === "production" ? "/ganpati-mobile" : "";
 }
 
@@ -28,15 +31,34 @@ function isIos() {
   return /iPhone|iPad|iPod/i.test(navigator.userAgent) && !window.MSStream;
 }
 
+function currentPrompt() {
+  return window.__gmpPwa?.deferred || null;
+}
+
+function waitForPrompt(ms = 2500) {
+  const existing = currentPrompt();
+  if (existing) return Promise.resolve(existing);
+
+  return new Promise((resolve) => {
+    const finish = () => {
+      clearTimeout(timer);
+      window.removeEventListener("gmp-pwa-ready", finish);
+      resolve(currentPrompt());
+    };
+    const timer = setTimeout(finish, ms);
+    window.addEventListener("gmp-pwa-ready", finish);
+  });
+}
+
 export default function AdminPwaPrompt() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const [deferred, setDeferred] = useState(null);
-  const [ios, setIos] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [iosHelp, setIosHelp] = useState(false);
 
   useEffect(() => {
     if (!pathname?.startsWith("/admin")) return;
+    if (isStandalone()) return;
 
     const base = getBasePath();
     if ("serviceWorker" in navigator) {
@@ -45,16 +67,15 @@ export default function AdminPwaPrompt() {
         .catch(() => {});
     }
 
-    if (isStandalone()) return;
-
     const onPrompt = (event) => {
       event.preventDefault();
-      setDeferred(event);
+      window.__gmpPwa = window.__gmpPwa || {};
+      window.__gmpPwa.deferred = event;
+      window.dispatchEvent(new Event("gmp-pwa-ready"));
     };
     window.addEventListener("beforeinstallprompt", onPrompt);
 
     if (!localStorage.getItem(DISMISS_KEY) && isMobileScreen()) {
-      setIos(isIos());
       setOpen(true);
     }
 
@@ -67,17 +88,25 @@ export default function AdminPwaPrompt() {
   }
 
   async function install() {
-    if (!deferred) return;
+    if (isIos()) {
+      setIosHelp(true);
+      return;
+    }
+
     setBusy(true);
     try {
-      deferred.prompt();
-      const choice = await deferred.userChoice;
+      const promptEvent = currentPrompt() || (await waitForPrompt());
+      if (!promptEvent) return;
+
+      promptEvent.prompt();
+      const choice = await promptEvent.userChoice;
+      window.__gmpPwa = window.__gmpPwa || {};
+      window.__gmpPwa.deferred = null;
       if (choice.outcome === "accepted") {
         localStorage.setItem(DISMISS_KEY, "1");
         setOpen(false);
       }
     } finally {
-      setDeferred(null);
       setBusy(false);
     }
   }
@@ -99,7 +128,8 @@ export default function AdminPwaPrompt() {
           Add the Ganpati admin app to your home screen. It opens straight at
           the admin login.
         </p>
-        {ios ? (
+        <p className="pwa-hint">Install now to open admin like a mobile app.</p>
+        {iosHelp ? (
           <ol className="pwa-steps">
             <li>
               Tap the <b>Share</b> button
@@ -108,22 +138,11 @@ export default function AdminPwaPrompt() {
               Then tap <b>Add to Home Screen</b>
             </li>
           </ol>
-        ) : deferred ? (
-          <p className="pwa-hint">Install now to open admin like a mobile app.</p>
-        ) : (
-          <ol className="pwa-steps">
-            <li>Open the browser menu</li>
-            <li>
-              Tap <b>Install app</b> or <b>Add to Home screen</b>
-            </li>
-          </ol>
-        )}
+        ) : null}
         <div className="pwa-actions">
-          {deferred ? (
-            <button className="admin-btn" type="button" onClick={install} disabled={busy}>
-              {busy ? "Installing..." : "Install app"}
-            </button>
-          ) : null}
+          <button className="admin-btn" type="button" onClick={install} disabled={busy}>
+            {busy ? "Installing..." : "Install app"}
+          </button>
           <button className="pwa-later" type="button" onClick={dismiss}>
             Not now
           </button>

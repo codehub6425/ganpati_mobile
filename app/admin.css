@@ -2188,19 +2188,17 @@
 
 .pwa-modal-card {
   width: min(420px, 100%);
-  max-height: min(86dvh, 560px);
-  overflow: auto;
   background: #fff;
   border-radius: 24px;
   box-shadow: 0 24px 60px rgba(17, 19, 24, 0.2);
-  padding: 22px 20px 18px;
+  padding: 20px 20px 12px;
 }
 
 .pwa-modal-brand {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .pwa-modal-brand strong,
