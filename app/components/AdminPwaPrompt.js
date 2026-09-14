@@ -7,6 +7,7 @@ import { getClientBasePath } from "@/lib/basePath";
 const DISMISS_KEY = "gmp-admin-pwa-dismissed";
 const INSTALLED_KEY = "gmp-admin-pwa-installed";
 const LAUNCH_KEY = "gmp-admin-pwa-launch-tried";
+const DISMISS_MS = 24 * 60 * 60 * 1000;
 
 function adminStartUrl() {
   return `${window.location.origin}${getClientBasePath()}/admin/login`;
@@ -73,9 +74,16 @@ async function isAppInstalled() {
   return false;
 }
 
+function isDismissedRecently() {
+  const raw = localStorage.getItem(DISMISS_KEY);
+  if (!raw) return false;
+  const at = Number(raw);
+  if (!Number.isFinite(at) || at < 1e12) return false;
+  return Date.now() - at < DISMISS_MS;
+}
+
 function markInstalled() {
   localStorage.setItem(INSTALLED_KEY, "1");
-  localStorage.setItem(DISMISS_KEY, "1");
 }
 
 function openInstalledApp() {
@@ -139,7 +147,7 @@ export default function AdminPwaPrompt() {
         return;
       }
 
-      if (!localStorage.getItem(DISMISS_KEY) && isMobileScreen()) {
+      if (!isDismissedRecently() && isMobileScreen()) {
         setMode("install");
         setOpen(true);
       }
@@ -153,7 +161,7 @@ export default function AdminPwaPrompt() {
   }, [pathname]);
 
   function dismiss() {
-    localStorage.setItem(DISMISS_KEY, "1");
+    localStorage.setItem(DISMISS_KEY, String(Date.now()));
     setOpen(false);
   }
 
