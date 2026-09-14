@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { applySessionCookie, refreshSessionToken } from "@/lib/auth";
+import { applySessionCookie, refreshSessionToken } from "@/lib/session";
 
 export function middleware(request) {
   if (request.nextUrl.pathname.endsWith("/logout")) {
