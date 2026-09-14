@@ -45,7 +45,6 @@ function currentPrompt() {
 }
 
 function storePrompt(event) {
-  event.preventDefault();
   window.__gmpPwa = window.__gmpPwa || {};
   window.__gmpPwa.deferred = event;
   window.dispatchEvent(new Event("gmp-pwa-ready"));
@@ -230,7 +229,7 @@ export default function AdminPwaPrompt() {
           {isOpenMode
             ? "Tap below to open the installed app."
             : failHint
-              ? "Open the Chrome menu, then tap Install app."
+              ? "Open the Chrome menu (3 dots), then tap Install app."
               : "Install now to open admin like a mobile app."}
         </p>
         {iosHelp ? (
