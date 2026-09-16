@@ -2867,8 +2867,108 @@
 }
 
 .ledger-type-badge.is-payment {
+  background: #fee2e2;
+  color: #b42318;
+}
+
+.ledger-type-badge.is-payment-in {
   background: #dcfce7;
   color: #15803d;
+}
+
+.ledger-amount-cell.is-credit,
+.ledger-entry-card strong.is-credit {
+  color: #15803d;
+}
+
+.ledger-summary-sub {
+  margin: 2px 0 0;
+  font-size: 11px;
+  font-weight: 800;
+  color: #5b6170;
+}
+
+.ledger-summary-sub.is-credit {
+  color: #15803d;
+}
+
+.ledger-payment-flow {
+  display: grid;
+  gap: 6px;
+}
+
+.ledger-payment-flow-label {
+  font-size: 12px;
+  font-weight: 800;
+  color: #5b6170;
+}
+
+.ledger-payment-flow-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ledger-flow-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #d7dce6;
+  background: #fff;
+  color: #111318;
+  border-radius: 999px;
+  padding: 8px 12px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: left;
+}
+
+.ledger-flow-chip-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.ledger-flow-chip-icon.is-debit {
+  background: #fee2e2;
+  color: #b42318;
+}
+
+.ledger-flow-chip-icon.is-credit {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.ledger-flow-chip.is-active .ledger-flow-chip-icon.is-debit,
+.ledger-flow-chip.is-active .ledger-flow-chip-icon.is-credit {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.ledger-flow-chip-text {
+  line-height: 1.25;
+}
+
+.ledger-flow-chip.is-active {
+  background: #111318;
+  border-color: #111318;
+  color: #fff;
+}
+
+.ledger-flow-chip.is-active.is-credit {
+  background: #15803d;
+  border-color: #15803d;
+}
+
+.ledger-flow-chip.is-active.is-debit {
+  background: #b42318;
+  border-color: #b42318;
 }
 
 .ledger-amount-cell {

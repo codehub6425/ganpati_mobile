@@ -4,8 +4,11 @@ import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { apiUrl } from "@/lib/basePath";
 import {
   CATEGORY_LABELS,
+  DEFAULT_PAYMENT_TAKEN_ITEMS,
   LEDGER_CATEGORIES,
   MT_SUBTYPES,
+  PAYMENT_FLOW_LABELS,
+  PAYMENT_FLOWS,
   PAYMENT_METHODS,
   RECHARGE_PROVIDERS,
   todayDateString,
@@ -26,6 +29,7 @@ const EMPTY_FORM = {
   lead_id: null,
   repair_brand: "",
   repair_brand_other: "",
+  payment_flow: "given",
 };
 
 const SUMMARY_META = {
@@ -109,6 +113,51 @@ function formatTime(value) {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
+}
+
+function isPaymentTaken(entry) {
+  return entry.category === "payment" && entry.payment_flow === "taken";
+}
+
+function entryCategoryBadge(entry) {
+  if (entry.category === "payment") {
+    return isPaymentTaken(entry) ? "Credit" : "Debit";
+  }
+  return CATEGORY_LABELS[entry.category] || entry.category;
+}
+
+function entryBadgeClass(entry) {
+  const base = entry.category.replace(/_/g, "-");
+  if (isPaymentTaken(entry)) return "payment-in";
+  return base;
+}
+
+function entryAmountDisplay(entry) {
+  const amt = formatMoney(entry.amount);
+  return isPaymentTaken(entry) ? `+₹${amt}` : `₹${amt}`;
+}
+
+function simpleAddHint(category, paymentFlow) {
+  if (category === "payment") {
+    return paymentFlow === "taken" ?
+        "Enter amount received (credit), e.g. room rent, interest, or due."
+      : "Enter expense amount and what it was paid for.";
+  }
+  return SIMPLE_ADD_HINT[category];
+}
+
+function normalizePaymentSuggestions(raw) {
+  if (raw && !Array.isArray(raw)) {
+    return {
+      given: raw.given || [],
+      taken: [...new Set([...DEFAULT_PAYMENT_TAKEN_ITEMS, ...(raw.taken || [])])],
+    };
+  }
+  const list = Array.isArray(raw) ? raw : [];
+  return {
+    given: list,
+    taken: [...DEFAULT_PAYMENT_TAKEN_ITEMS],
+  };
 }
 
 function entryItemLabel(entry) {
@@ -196,6 +245,38 @@ function DownloadIcon() {
   );
 }
 
+function PaymentFlowIcon({ flow }) {
+  const common = {
+    viewBox: "0 0 24 24",
+    width: 16,
+    height: 16,
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 2,
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+    "aria-hidden": true,
+  };
+
+  if (flow === "given") {
+    return (
+      <svg {...common}>
+        <path d="M12 19V9" />
+        <path d="M8 13l4-4 4 4" />
+        <path d="M5 5h14" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg {...common}>
+      <path d="M12 5v10" />
+      <path d="M8 11l4 4 4-4" />
+      <path d="M5 19h14" />
+    </svg>
+  );
+}
+
 function LedgerExportButton({ onClick }) {
   return (
     <button type="button" className="ledger-export-btn" onClick={onClick} aria-label="Export PDF">
@@ -245,7 +326,7 @@ export default function DayBookApp({ userRole = "staff" }) {
   const [itemSuggestions, setItemSuggestions] = useState({
     accessory: [],
     repair: [],
-    payment: [],
+    payment: { given: [], taken: [...DEFAULT_PAYMENT_TAKEN_ITEMS] },
   });
 
   const canEdit = book?.can_edit ?? false;
@@ -257,7 +338,10 @@ export default function DayBookApp({ userRole = "staff" }) {
       const res = await fetch(apiUrl("/api/admin/day-books/suggestions"), { credentials: "include" });
       const data = await res.json();
       if (res.ok && data.suggestions) {
-        setItemSuggestions(data.suggestions);
+        setItemSuggestions({
+          ...data.suggestions,
+          payment: normalizePaymentSuggestions(data.suggestions.payment),
+        });
       }
     } catch {
       // ignore
@@ -394,6 +478,7 @@ export default function DayBookApp({ userRole = "staff" }) {
               form.repair_brand_other.trim()
             : form.repair_brand.trim()
           : undefined,
+        payment_flow: category === "payment" ? form.payment_flow || "given" : undefined,
       };
       const res = await fetch(apiUrl("/api/admin/day-books/entries"), {
         method: "POST",
@@ -581,13 +666,41 @@ export default function DayBookApp({ userRole = "staff" }) {
           ) : null}
 
           {category === "payment" ? (
-            <SavedItemField
-              label="Expense for"
-              placeholder="Petrol, parts..."
-              value={form.description}
-              suggestions={itemSuggestions.payment}
-              onChange={(description) => setForm((p) => ({ ...p, description }))}
-            />
+            <>
+              <div className="ledger-payment-flow">
+                <span className="ledger-payment-flow-label">Type</span>
+                <div className="ledger-payment-flow-chips" role="group" aria-label="Payment type">
+                  {PAYMENT_FLOWS.map((flow) => (
+                    <button
+                      key={flow}
+                      type="button"
+                      className={`ledger-flow-chip${form.payment_flow === flow ? " is-active" : ""}${flow === "taken" ? " is-credit" : " is-debit"}`}
+                      onClick={() => setForm((p) => ({ ...p, payment_flow: flow, description: "" }))}
+                    >
+                      <span
+                        className={`ledger-flow-chip-icon${flow === "taken" ? " is-credit" : " is-debit"}`}
+                      >
+                        <PaymentFlowIcon flow={flow} />
+                      </span>
+                      <span className="ledger-flow-chip-text">{PAYMENT_FLOW_LABELS[flow]}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <SavedItemField
+                label={form.payment_flow === "taken" ? "Received for" : "Paid for"}
+                placeholder={
+                  form.payment_flow === "taken" ? "Room rent, interest, due…" : "Petrol, parts…"
+                }
+                value={form.description}
+                suggestions={
+                  form.payment_flow === "taken" ?
+                    itemSuggestions.payment.taken
+                  : itemSuggestions.payment.given
+                }
+                onChange={(description) => setForm((p) => ({ ...p, description }))}
+              />
+            </>
           ) : null}
 
           {!simple && (category === "recharge" || category === "money_transfer") ? (
@@ -773,7 +886,18 @@ export default function DayBookApp({ userRole = "staff" }) {
                 </span>
                 <div>
                   <p>{meta.label}</p>
-                  <strong>₹{formatMoney(val)}</strong>
+                  {cat === "payment" ? (
+                    <>
+                      <strong>₹{formatMoney(totals.total_payment ?? 0)}</strong>
+                      {(totals.total_payment_taken ?? 0) > 0 ? (
+                        <p className="ledger-summary-sub is-credit">
+                          +₹{formatMoney(totals.total_payment_taken)} credit
+                        </p>
+                      ) : null}
+                    </>
+                  ) : (
+                    <strong>₹{formatMoney(val)}</strong>
+                  )}
                 </div>
               </article>
             );
@@ -876,12 +1000,16 @@ export default function DayBookApp({ userRole = "staff" }) {
                       {isRangeView ? <td>{entry.book_date || "—"}</td> : null}
                       <td>{formatTime(entry.created_at)}</td>
                       <td>
-                        <span className={`ledger-type-badge is-${entry.category.replace(/_/g, "-")}`}>
-                          {CATEGORY_LABELS[entry.category] || entry.category}
+                        <span className={`ledger-type-badge is-${entryBadgeClass(entry)}`}>
+                          {entryCategoryBadge(entry)}
                         </span>
                       </td>
                       <td>{entryItemLabel(entry)}</td>
-                      <td className="ledger-amount-cell">₹{formatMoney(entry.amount)}</td>
+                      <td
+                        className={`ledger-amount-cell${isPaymentTaken(entry) ? " is-credit" : ""}`}
+                      >
+                        {entryAmountDisplay(entry)}
+                      </td>
                       <td>{entryNote(entry)}</td>
                       <td>{entry.created_by_name || "—"}</td>
                       {canEdit ? (
@@ -906,10 +1034,12 @@ export default function DayBookApp({ userRole = "staff" }) {
               {filteredEntries.map((entry, index) => (
                 <li key={entry.id} className="ledger-entry-card">
                   <div className="ledger-entry-card-top">
-                    <span className={`ledger-type-badge is-${entry.category.replace(/_/g, "-")}`}>
-                      {CATEGORY_LABELS[entry.category]}
+                    <span className={`ledger-type-badge is-${entryBadgeClass(entry)}`}>
+                      {entryCategoryBadge(entry)}
                     </span>
-                    <strong>₹{formatMoney(entry.amount)}</strong>
+                    <strong className={isPaymentTaken(entry) ? "is-credit" : undefined}>
+                      {entryAmountDisplay(entry)}
+                    </strong>
                   </div>
                   <p className="ledger-entry-card-main">{entryItemLabel(entry)}</p>
                   {entryNote(entry) !== "—" ? (
@@ -953,7 +1083,11 @@ export default function DayBookApp({ userRole = "staff" }) {
                     `Quick add — ${SUMMARY_META[category]?.label || CATEGORY_LABELS[category]}`
                   : "Add transaction"}
                 </h3>
-                <p>{addSimple ? SIMPLE_ADD_HINT[category] : "Choose type and enter amount."}</p>
+                <p>
+                  {addSimple ?
+                    simpleAddHint(category, form.payment_flow)
+                  : "Choose type and enter amount."}
+                </p>
               </div>
               <button type="button" className="ledger-modal-close" onClick={closeAddModal} aria-label="Close">
                 ×

@@ -159,6 +159,12 @@ export default function LedgerPrintSheet({
           </p>
           <p>
             Payment (out): <strong>₹{formatMoney(totals.total_payment ?? 0)}</strong>
+            {(totals.total_payment_taken ?? 0) > 0 ?
+              <>
+                {" "}
+                · Payment in: <strong>₹{formatMoney(totals.total_payment_taken)}</strong>
+              </>
+            : null}
           </p>
           <p>
             Net balance: <strong>₹{formatMoney(totals.net_day ?? 0)}</strong> · {entries.length} transaction

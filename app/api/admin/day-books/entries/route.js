@@ -62,8 +62,8 @@ export async function POST(request) {
     const e = parsed.entry;
     const [result] = await db.execute(
       `INSERT INTO ledger_entries
-        (day_book_id, category, amount, transfer_amount, mt_subtype, provider, description, payment_method, lead_id, customer_phone, device_brand, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (day_book_id, category, amount, transfer_amount, mt_subtype, provider, description, payment_method, lead_id, customer_phone, device_brand, payment_flow, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         book.id,
         e.category,
@@ -76,6 +76,7 @@ export async function POST(request) {
         e.lead_id,
         e.customer_phone,
         e.device_brand,
+        e.payment_flow,
         auth.user.id,
       ]
     );

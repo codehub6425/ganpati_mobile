@@ -73,7 +73,8 @@ export async function PATCH(request, { params }) {
     await db.execute(
       `UPDATE ledger_entries
        SET category = ?, amount = ?, transfer_amount = ?, mt_subtype = ?, provider = ?,
-           description = ?, payment_method = ?, lead_id = ?, customer_phone = ?, device_brand = ?
+           description = ?, payment_method = ?, lead_id = ?, customer_phone = ?, device_brand = ?,
+           payment_flow = ?
        WHERE id = ?`,
       [
         e.category,
@@ -86,6 +87,7 @@ export async function PATCH(request, { params }) {
         e.lead_id,
         e.customer_phone,
         e.device_brand,
+        e.payment_flow,
         entryId,
       ]
     );
