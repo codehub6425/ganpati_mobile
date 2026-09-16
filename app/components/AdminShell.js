@@ -17,8 +17,8 @@ const NAV = [
 
 const TABS = [
   { href: "/admin", label: "Home", icon: "home" },
+  { href: "/admin/accounting", label: "Accounts", icon: "ledger" },
   { href: "/admin/leads", label: "Leads", icon: "leads" },
-  { href: "/admin/customers", label: "Customers", icon: "people" },
 ];
 
 export default function AdminShell({ children, user = null }) {

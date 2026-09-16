@@ -906,9 +906,14 @@ export default function DayBookApp({ userRole = "staff" }) {
             <span className="ledger-summary-icon" aria-hidden="true">
               <LedgerCategoryIcon kind="net" />
             </span>
-            <div>
+            <div className="ledger-summary-net-body">
               <p>{isRangeView ? "Net (range)" : "Net today"}</p>
-              <strong>₹{formatMoney(totals.net_day)}</strong>
+              <div className="ledger-summary-net-row">
+                <strong>₹{formatMoney(totals.net_day)}</strong>
+                <span className="ledger-summary-net-count">
+                  {entries.length} transaction{entries.length === 1 ? "" : "s"}
+                </span>
+              </div>
             </div>
           </article>
         </section>
@@ -1105,7 +1110,7 @@ export default function DayBookApp({ userRole = "staff" }) {
       ) : null}
 
       {totals ? (
-        <footer className="ledger-day-foot">
+        <footer className="ledger-day-foot ledger-day-foot-desktop">
           <div className="ledger-day-stat is-balance">
             <span>{isRangeView ? "Range balance (net)" : "Day balance (net)"}</span>
             <strong>₹{formatMoney(totals.net_day)}</strong>

@@ -2647,6 +2647,19 @@
   color: #0369a1;
 }
 
+.ledger-summary-net-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 12px;
+}
+
+.ledger-summary-net-count {
+  font-size: 12px;
+  font-weight: 700;
+  color: #5b6170;
+}
+
 .ledger-quick {
   padding: 16px;
   margin-bottom: 14px;
@@ -2996,6 +3009,10 @@
   box-shadow: 0 10px 28px rgba(17, 19, 24, 0.06);
 }
 
+.ledger-day-foot-desktop {
+  display: none;
+}
+
 .ledger-day-stat {
   flex: 1 1 140px;
   padding: 10px 12px;
@@ -3045,6 +3062,14 @@
 @media (min-width: 1024px) {
   .ledger-app {
     padding-bottom: 24px;
+  }
+
+  .ledger-day-foot-desktop {
+    display: flex;
+  }
+
+  .ledger-summary-card.is-net .ledger-summary-net-count {
+    display: none;
   }
 
   .ledger-summary-grid {
