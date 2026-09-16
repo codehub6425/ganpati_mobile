@@ -24,9 +24,9 @@ export default function AdminBrowserHint() {
   return (
     <div className="admin-browser-hint" role="status">
       <p>
-        <strong>Browser mode</strong> — the bar at the top with <em>bhoomideal.com</em> is Chrome, not
-        the app. For a full-screen app, open <strong>Ganpati Admin</strong> from your home screen icon
-        (install via Chrome menu → Install app).
+        <strong>Browser mode</strong> — the top bar with the website name is Chrome, not the app. Remove
+        the old shortcut, then in Chrome open admin → menu → <strong>Install app</strong>, and use only
+        that new home-screen icon.
       </p>
       <button type="button" className="admin-browser-hint-close" onClick={dismiss} aria-label="Dismiss">
         ×

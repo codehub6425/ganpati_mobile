@@ -6,21 +6,11 @@ import {
 } from "@/lib/session-edge";
 
 function isAdminArea(pathname) {
-  return (
-    pathname.startsWith("/admin") ||
-    pathname.startsWith("/ganpati-mobile/admin") ||
-    pathname.startsWith("/api/admin") ||
-    pathname.startsWith("/ganpati-mobile/api/admin")
-  );
+  return pathname.startsWith("/admin") || pathname.startsWith("/api/admin");
 }
 
 function isLoginPath(pathname) {
-  return (
-    pathname === "/admin/login" ||
-    pathname.startsWith("/admin/login/") ||
-    pathname === "/ganpati-mobile/admin/login" ||
-    pathname.startsWith("/ganpati-mobile/admin/login/")
-  );
+  return pathname === "/admin/login" || pathname.startsWith("/admin/login/");
 }
 
 export async function middleware(request) {
@@ -46,10 +36,5 @@ export async function middleware(request) {
 }
 
 export const config = {
-  matcher: [
-    "/admin/:path*",
-    "/api/admin/:path*",
-    "/ganpati-mobile/admin/:path*",
-    "/ganpati-mobile/api/admin/:path*",
-  ],
+  matcher: ["/admin/:path*", "/api/admin/:path*"],
 };
