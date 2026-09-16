@@ -8,6 +8,7 @@ import { apiUrl } from "@/lib/basePath";
 const NAV = [
   { href: "/admin", label: "Dashboard", icon: "home" },
   { href: "/admin/leads", label: "Leads", icon: "leads" },
+  { href: "/admin/accounting", label: "Day book", icon: "ledger" },
   { href: "/admin/customers", label: "Customers", icon: "people" },
   { href: "/admin/staff", label: "Staff", icon: "staff", adminOnly: true },
   { href: "/admin/jobs", label: "Jobs", icon: "jobs", soon: true },
@@ -41,11 +42,13 @@ export default function AdminShell({ children, user = null }) {
 
   const pageTitle = pathname.startsWith("/admin/leads")
     ? "Leads"
-    : pathname.startsWith("/admin/customers")
-      ? "Customers"
-      : pathname.startsWith("/admin/staff")
-        ? "Staff"
-        : "Home";
+    : pathname.startsWith("/admin/accounting")
+      ? "Day book"
+      : pathname.startsWith("/admin/customers")
+        ? "Customers"
+        : pathname.startsWith("/admin/staff")
+          ? "Staff"
+          : "Home";
 
   return (
     <div className="admin-app">
@@ -185,6 +188,14 @@ function MenuIcon({ name }) {
         <path
           fill="currentColor"
           d="M14 3h7v7h-2V6.4l-9.3 9.3-1.4-1.4L17.6 5H14V3ZM5 5h7v2H7v10h10v-5h2v7H5V5Z"
+        />
+      </svg>
+    ),
+    ledger: (
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+        <path
+          fill="currentColor"
+          d="M5 4h14a2 2 0 0 1 2 2v14a1 1 0 0 1-1 1H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm2 4v2h10V8H7Zm0 4v2h6v-2H7Z"
         />
       </svg>
     ),

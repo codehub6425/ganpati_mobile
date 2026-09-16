@@ -53,7 +53,7 @@ function inRange(iso, start, end) {
   return iso >= start && iso <= end;
 }
 
-export default function DateRangeFilter({ from, to, onChange }) {
+export default function DateRangeFilter({ from, to, onChange, label = "", variant = "button", maxDate = "" }) {
   const wrapRef = useRef(null);
   const [open, setOpen] = useState(false);
   const [start, setStart] = useState(from || "");
@@ -139,15 +139,24 @@ export default function DateRangeFilter({ from, to, onChange }) {
   const title = view.toLocaleDateString("en-IN", { month: "long", year: "numeric" });
   const selected = Boolean(from || to);
 
+  const isField = variant === "field";
+
+  function openPicker() {
+    setOpen(true);
+  }
+
   return (
-    <div className="admin-date-wrap" ref={wrapRef}>
+    <div className={`admin-date-wrap${isField ? " is-field" : ""}`} ref={wrapRef}>
+      {label ? <span className="admin-date-label">{label}</span> : null}
       <button
-        className={`admin-date-btn${open || selected ? " is-active" : ""}`}
+        className={`${isField ? "admin-date-input-like" : "admin-date-btn"}${open || selected ? " is-active" : ""}`}
         type="button"
-        onClick={() => setOpen((value) => !value)}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={openPicker}
       >
+        <span className="admin-date-input-text">{formatLabel(from, to)}</span>
         <CalendarIcon />
-        <span>{formatLabel(from, to)}</span>
       </button>
 
       {open ? (
@@ -191,12 +200,14 @@ export default function DateRangeFilter({ from, to, onChange }) {
               const isStart = iso === start;
               const isEnd = iso === (end || start);
               const ranged = inRange(iso, start, end || start);
+              const isFuture = maxDate && iso > maxDate;
               return (
                 <button
                   key={iso}
                   type="button"
-                  className={`admin-cal-day${isStart || isEnd ? " is-picked" : ""}${ranged ? " is-range" : ""}`}
-                  onClick={() => pickDay(iso)}
+                  className={`admin-cal-day${isStart || isEnd ? " is-picked" : ""}${ranged ? " is-range" : ""}${isFuture ? " is-disabled" : ""}`}
+                  disabled={isFuture}
+                  onClick={() => !isFuture && pickDay(iso)}
                 >
                   {Number(iso.slice(-2))}
                 </button>

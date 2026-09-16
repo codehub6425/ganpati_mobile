@@ -24,7 +24,14 @@ export default function AdminLoginPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
-      const data = await response.json();
+      const raw = await response.text();
+      let data = {};
+      try {
+        data = raw ? JSON.parse(raw) : {};
+      } catch {
+        setError("Server error. Please try again.");
+        return;
+      }
       if (!response.ok) {
         setError(data.message || "Login failed.");
         return;
@@ -32,7 +39,7 @@ export default function AdminLoginPage() {
       router.push("/admin");
       router.refresh();
     } catch {
-      setError("Network error. Please try again.");
+      setError("Could not reach the server. Check that npm run dev is running.");
     } finally {
       setBusy(false);
     }

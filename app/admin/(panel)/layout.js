@@ -12,12 +12,7 @@ export const viewport = {
 };
 
 export default async function AdminPanelLayout({ children }) {
-  let user = null;
-  try {
-    user = await getSessionUser();
-  } catch (error) {
-    console.error(error);
-  }
+  const user = await getSessionUser();
   if (!user) {
     redirect("/admin/login");
   }
