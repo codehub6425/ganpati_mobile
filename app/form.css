@@ -938,40 +938,6 @@ input:focus {
     bottom: 0;
     z-index: 40;
     pointer-events: none;
-    transition: bottom 0.2s ease;
-  }
-
-  .form-sticky-keyboard-hint {
-    display: none;
-  }
-
-  .form-sticky-wrap.is-keyboard-open .form-sticky-keyboard-hint {
-    display: block;
-    margin: 0;
-    padding: 6px var(--safe-x) 0;
-    text-align: center;
-    font-size: 11px;
-    font-weight: 800;
-    color: #111318;
-    pointer-events: none;
-  }
-
-  .form-sticky-wrap.is-keyboard-open .form-sticky-guide {
-    display: none;
-  }
-
-  .form-sticky-wrap.is-keyboard-open .form-sticky-label,
-  .form-sticky-wrap.is-keyboard-open .form-sticky-wa {
-    display: none;
-  }
-
-  .form-sticky-wrap.is-keyboard-open .form-sticky-bar {
-    padding-top: 6px;
-    gap: 0;
-  }
-
-  .form-sticky-wrap.is-keyboard-open .form-sticky-bar .submit {
-    min-height: 46px;
   }
 
   .form-sticky-guide {
@@ -1049,17 +1015,7 @@ input:focus {
   }
 
   .page {
-    padding-bottom: calc(190px + var(--keyboard-inset, 0px) + env(safe-area-inset-bottom, 0px));
-  }
-
-  .repair-callback-form input:focus,
-  .repair-callback-form textarea:focus {
-    scroll-margin-top: 72px;
-    scroll-margin-bottom: calc(160px + var(--keyboard-inset, 0px));
-  }
-
-  fieldset.chips-field {
-    scroll-margin-bottom: calc(180px + var(--keyboard-inset, 0px));
+    padding-bottom: calc(190px + env(safe-area-inset-bottom, 0px));
   }
 
   .site-footer {

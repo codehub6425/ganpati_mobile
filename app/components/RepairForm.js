@@ -151,8 +151,6 @@ export default function RepairForm() {
   const phoneRef = useRef(null);
   const brandRef = useRef(null);
   const problemRef = useRef(null);
-  const scrollTimerRef = useRef(null);
-  const [keyboardInset, setKeyboardInset] = useState(0);
   const [values, setValues] = useState(empty);
   const [errors, setErrors] = useState({});
   const [focusTick, setFocusTick] = useState(0);
@@ -176,56 +174,6 @@ export default function RepairForm() {
       active = false;
     };
   }, []);
-
-  useEffect(() => {
-    if (saved) return undefined;
-    const vv = window.visualViewport;
-    if (!vv) return undefined;
-
-    function syncViewport() {
-      const inset = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
-      setKeyboardInset(inset);
-      document.documentElement.style.setProperty("--keyboard-inset", `${inset}px`);
-    }
-
-    syncViewport();
-    vv.addEventListener("resize", syncViewport);
-    vv.addEventListener("scroll", syncViewport);
-    window.addEventListener("orientationchange", syncViewport);
-
-    return () => {
-      vv.removeEventListener("resize", syncViewport);
-      vv.removeEventListener("scroll", syncViewport);
-      window.removeEventListener("orientationchange", syncViewport);
-      document.documentElement.style.removeProperty("--keyboard-inset");
-    };
-  }, [saved]);
-
-  function scrollInputIntoView(el) {
-    if (!el || typeof el.getBoundingClientRect !== "function") return;
-    const vv = window.visualViewport;
-    const rect = el.getBoundingClientRect();
-    const inset =
-      vv != null ? Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)) : keyboardInset;
-    const stickyReserve = inset > 40 ? 118 : 200;
-    const topPad = (vv?.offsetTop ?? 0) + 12;
-    const visibleBottom = (vv?.height ?? window.innerHeight) + (vv?.offsetTop ?? 0) - stickyReserve;
-
-    if (rect.top < topPad || rect.bottom > visibleBottom) {
-      const nextTop = window.scrollY + rect.top - topPad - 8;
-      window.scrollTo({ top: Math.max(0, nextTop), behavior: "smooth" });
-    }
-  }
-
-  function handleFormFocusIn(event) {
-    const target = event.target;
-    if (!(target instanceof HTMLElement)) return;
-    if (!target.matches("input, textarea, select")) return;
-    if (!target.closest(".repair-callback-form")) return;
-
-    if (scrollTimerRef.current) window.clearTimeout(scrollTimerRef.current);
-    scrollTimerRef.current = window.setTimeout(() => scrollInputIntoView(target), 350);
-  }
 
   function update(name, value) {
     setValues((prev) => ({ ...prev, [name]: value }));
@@ -392,18 +340,10 @@ export default function RepairForm() {
                   </div>
                   <h2 id="form-title">Request a callback</h2>
                   <p className="panel-lead">No login. We call you with a price and time.</p>
-                  <p className="form-mobile-hint">
-                    Fill name and mobile first. The submit button stays above your keyboard while typing.
-                  </p>
+                  <p className="form-mobile-hint">Name and mobile first — then use the button fixed at the bottom.</p>
                 </div>
 
-                <form
-                  id={formId}
-                  className="repair-callback-form"
-                  onSubmit={onSubmit}
-                  onFocusCapture={handleFormFocusIn}
-                  noValidate
-                >
+                <form id={formId} className="repair-callback-form" onSubmit={onSubmit} noValidate>
                   <div className="field-row">
                     <label
                       className={`field${errors.name ? " is-invalid is-highlight" : ""}`}
@@ -609,15 +549,7 @@ export default function RepairForm() {
       </main>
 
       {!saved ? (
-        <div
-          className={`form-sticky-wrap${keyboardInset > 40 ? " is-keyboard-open" : ""}`}
-          style={keyboardInset > 0 ? { bottom: `${keyboardInset}px` } : undefined}
-          role="region"
-          aria-label="Send repair request"
-        >
-          {keyboardInset > 40 ? (
-            <p className="form-sticky-keyboard-hint">Request a callback is right here ↑</p>
-          ) : null}
+        <div className="form-sticky-wrap" role="region" aria-label="Send repair request">
           <div className="form-sticky-guide" aria-hidden="true">
             <img
               className="form-sticky-mascot"
