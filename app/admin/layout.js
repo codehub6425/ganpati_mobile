@@ -1,3 +1,4 @@
+import AdminBrowserHint from "../components/AdminBrowserHint";
 import AdminPwaPrompt from "../components/AdminPwaPrompt";
 import { getBasePath } from "@/lib/basePath";
 import "sweetalert2/dist/sweetalert2.min.css";
@@ -30,6 +31,7 @@ export const viewport = {
 export default function AdminLayout({ children }) {
   return (
     <>
+      <AdminBrowserHint />
       {children}
       <AdminPwaPrompt />
     </>

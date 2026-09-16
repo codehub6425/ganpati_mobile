@@ -11,6 +11,7 @@ export function GET() {
     start_url: `${base}/admin`,
     scope: `${base}/admin/`,
     display: "standalone",
+    display_override: ["standalone", "minimal-ui"],
     background_color: "#0f1728",
     theme_color: "#0f1728",
     lang: "en",
