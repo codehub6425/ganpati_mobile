@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiUrl } from "@/lib/basePath";
+import { showError } from "@/lib/swal";
 import "../../admin.css";
 
 export default function AdminLoginPage() {
@@ -10,12 +11,10 @@ export default function AdminLoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function onSubmit(event) {
     event.preventDefault();
-    setError("");
     setBusy(true);
     try {
       const response = await fetch(apiUrl("/api/admin/login"), {
@@ -29,17 +28,17 @@ export default function AdminLoginPage() {
       try {
         data = raw ? JSON.parse(raw) : {};
       } catch {
-        setError("Server error. Please try again.");
+        showError("Server error. Please try again.");
         return;
       }
       if (!response.ok) {
-        setError(data.message || "Login failed.");
+        showError(data.message || "Login failed.");
         return;
       }
       router.push("/admin");
       router.refresh();
     } catch {
-      setError("Could not reach the server. Check that npm run dev is running.");
+      showError("Could not reach the server. Check that npm run dev is running.");
     } finally {
       setBusy(false);
     }
@@ -91,7 +90,6 @@ export default function AdminLoginPage() {
               </button>
             </div>
           </label>
-          {error ? <p className="admin-error">{error}</p> : null}
           <button className="admin-btn" type="submit" disabled={busy}>
             {busy ? "Signing in..." : "Sign in"}
           </button>

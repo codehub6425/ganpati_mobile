@@ -67,7 +67,7 @@ export function downloadDayBookPdf({
   const pageWidth = doc.internal.pageSize.getWidth();
 
   doc.setFontSize(16);
-  doc.text("Ganpati Mobile Point — Day book", 14, 14);
+  doc.text("Ganpati Mobile Point — Daily Accounts", 14, 14);
   doc.setFontSize(10);
   doc.text("Nirman Nagar, Jaipur", 14, 20);
   doc.text(`Date: ${formatHeaderDate(dateFrom, dateTo, isRangeView)}`, pageWidth - 14, 14, {
@@ -146,5 +146,5 @@ export function downloadDayBookPdf({
 
   const fileSuffix =
     isRangeView && dateFrom !== dateTo ? `${dateFrom}_to_${dateTo}` : dateFrom || "export";
-  doc.save(`day-book-${fileSuffix}.pdf`);
+  doc.save(`daily-accounts-${fileSuffix}.pdf`);
 }

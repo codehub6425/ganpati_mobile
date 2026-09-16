@@ -1,4 +1,5 @@
 import DashboardHome from "@/app/components/DashboardHome";
+import SwalMessage from "@/app/components/SwalMessage";
 import { getSessionUser } from "@/lib/auth";
 import { dbErrorMessage, ensureLeadsTable, getPool } from "@/lib/db";
 import { titleCase } from "@/lib/format";
@@ -71,7 +72,7 @@ export default async function AdminDashboardPage() {
 
   return (
     <>
-      {loadError ? <p className="admin-error">{loadError}</p> : null}
+      {loadError ? <SwalMessage message={loadError} /> : null}
       <DashboardHome stats={stats} recent={recent} userName={user?.name || "Shubham"} />
     </>
   );

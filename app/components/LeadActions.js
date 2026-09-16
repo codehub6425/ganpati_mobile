@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { formatPhone, telHref } from "@/lib/format";
 import { apiUrl } from "@/lib/basePath";
+import { confirmAction, showError } from "@/lib/swal";
 
 const OPTIONS = [
   { id: "pending", label: "Pending" },
@@ -111,11 +112,21 @@ export default function LeadActions({ id, status, phone, name = "", followup = {
   }, [menuOpen]);
 
   async function setLeadStatus(next) {
-    if (next === "verified" && !window.confirm("Mark as verified after calling? This saves the customer for staff.")) {
-      return;
+    if (next === "verified") {
+      const ok = await confirmAction({
+        title: "Mark verified?",
+        text: "Mark as verified after calling? This saves the customer for staff.",
+        confirmText: "Mark verified",
+      });
+      if (!ok) return;
     }
-    if (next === "spam" && !window.confirm("Mark this as spam and hide it from new leads?")) {
-      return;
+    if (next === "spam") {
+      const ok = await confirmAction({
+        title: "Mark as spam?",
+        text: "Mark this as spam and hide it from new leads?",
+        confirmText: "Mark spam",
+      });
+      if (!ok) return;
     }
 
     setBusy(next);
@@ -128,12 +139,12 @@ export default function LeadActions({ id, status, phone, name = "", followup = {
       });
       const data = await res.json();
       if (!data.ok) {
-        window.alert(data.message || "Could not update this lead.");
+        showError(data.message || "Could not update this lead.");
         return;
       }
       router.refresh();
     } catch {
-      window.alert("Could not update this lead. Check the server.");
+      showError("Could not update this lead. Check the server.");
     } finally {
       setBusy("");
     }
@@ -154,7 +165,7 @@ export default function LeadActions({ id, status, phone, name = "", followup = {
       });
       const data = await res.json();
       if (!data.ok) {
-        window.alert(data.message || "Could not save follow-up.");
+        showError(data.message || "Could not save follow-up.");
         return;
       }
       setFollowStatus(payload.status);
@@ -163,7 +174,7 @@ export default function LeadActions({ id, status, phone, name = "", followup = {
       setOpen(false);
       router.refresh();
     } catch {
-      window.alert("Could not save follow-up.");
+      showError("Could not save follow-up.");
     } finally {
       setBusy("");
     }

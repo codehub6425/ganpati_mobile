@@ -8,7 +8,7 @@ import { apiUrl } from "@/lib/basePath";
 const NAV = [
   { href: "/admin", label: "Dashboard", icon: "home" },
   { href: "/admin/leads", label: "Leads", icon: "leads" },
-  { href: "/admin/accounting", label: "Day book", icon: "ledger" },
+  { href: "/admin/accounting", label: "Daily Accounts", icon: "ledger" },
   { href: "/admin/customers", label: "Customers", icon: "people" },
   { href: "/admin/staff", label: "Staff", icon: "staff", adminOnly: true },
   { href: "/admin/jobs", label: "Jobs", icon: "jobs", soon: true },
@@ -43,7 +43,7 @@ export default function AdminShell({ children, user = null }) {
   const pageTitle = pathname.startsWith("/admin/leads")
     ? "Leads"
     : pathname.startsWith("/admin/accounting")
-      ? "Day book"
+      ? "Daily Accounts"
       : pathname.startsWith("/admin/customers")
         ? "Customers"
         : pathname.startsWith("/admin/staff")

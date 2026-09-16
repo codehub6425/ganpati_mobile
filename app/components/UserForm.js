@@ -4,13 +4,13 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { apiUrl } from "@/lib/basePath";
+import { showError } from "@/lib/swal";
 
 export default function UserForm() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -21,7 +21,6 @@ export default function UserForm() {
 
   async function onSubmit(event) {
     event.preventDefault();
-    setError("");
     setBusy(true);
     try {
       const res = await fetch(apiUrl("/api/admin/users"), {
@@ -31,7 +30,7 @@ export default function UserForm() {
       });
       const data = await res.json();
       if (!data.ok) {
-        setError(data.message || "Could not add this user.");
+        showError(data.message || "Could not add this user.");
         return;
       }
       setName("");
@@ -40,7 +39,7 @@ export default function UserForm() {
       setOpen(false);
       router.refresh();
     } catch {
-      setError("Could not add this user.");
+      showError("Could not add this user.");
     } finally {
       setBusy(false);
     }
@@ -79,7 +78,6 @@ export default function UserForm() {
                   minLength={6}
                   required
                 />
-                {error ? <p className="admin-error">{error}</p> : null}
                 <button className="admin-follow-save" type="submit" disabled={busy}>
                   {busy ? "Saving…" : "Save staff"}
                 </button>

@@ -11,6 +11,7 @@ import {
   todayDateString,
 } from "@/lib/ledger";
 import { PHONE_BRANDS } from "@/lib/brands";
+import { confirmAction, showError } from "@/lib/swal";
 import DateRangeFilter from "./DateRangeFilter";
 import LeadPicker from "./LeadPicker";
 
@@ -234,7 +235,6 @@ export default function DayBookApp({ userRole = "staff" }) {
   const [totals, setTotals] = useState(null);
   const [category, setCategory] = useState("recharge");
   const [form, setForm] = useState(EMPTY_FORM);
-  const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [search, setSearch] = useState("");
@@ -276,7 +276,7 @@ export default function DayBookApp({ userRole = "staff" }) {
       });
       const data = await res.json();
       if (!res.ok) {
-        setLoadError(data.message || "Could not load day book.");
+        setLoadError(data.message || "Could not load daily accounts.");
         setBook(null);
         setEntries([]);
         setTotals(null);
@@ -297,6 +297,10 @@ export default function DayBookApp({ userRole = "staff" }) {
   useEffect(() => {
     loadSuggestions();
   }, [loadSuggestions]);
+
+  useEffect(() => {
+    if (loadError) showError(loadError);
+  }, [loadError]);
 
   const filteredEntries = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -323,21 +327,18 @@ export default function DayBookApp({ userRole = "staff" }) {
 
   function resetForm(keepCategory = true) {
     setForm(EMPTY_FORM);
-    setError("");
     if (!keepCategory) setCategory("recharge");
   }
 
   function onCategoryChange(next) {
     setCategory(next);
     setForm(EMPTY_FORM);
-    setError("");
     setShowCustomerPhone(false);
   }
 
   function openAddModal(nextCategory = "recharge", { simple = false } = {}) {
     setCategory(nextCategory);
     setForm(EMPTY_FORM);
-    setError("");
     setAddSimple(simple);
     setShowCustomerPhone(false);
     setAddOpen(true);
@@ -351,7 +352,6 @@ export default function DayBookApp({ userRole = "staff" }) {
     if (busy) return;
     setAddOpen(false);
     setAddSimple(false);
-    setError("");
   }
 
   function clearFilters() {
@@ -362,16 +362,15 @@ export default function DayBookApp({ userRole = "staff" }) {
   async function submitEntry(event) {
     event.preventDefault();
     if (!canEdit) return;
-    setError("");
     if (category === "repair") {
       const brand =
         form.repair_brand === "Other" ? form.repair_brand_other.trim() : form.repair_brand.trim();
       if (!form.repair_brand) {
-        setError("Select mobile brand.");
+        showError("Select mobile brand.");
         return;
       }
       if (form.repair_brand === "Other" && !brand) {
-        setError("Enter brand name under Other.");
+        showError("Enter brand name under Other.");
         return;
       }
     }
@@ -404,7 +403,7 @@ export default function DayBookApp({ userRole = "staff" }) {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.message || "Could not save.");
+        showError(data.message || "Could not save.");
         return;
       }
       resetForm(true);
@@ -412,7 +411,7 @@ export default function DayBookApp({ userRole = "staff" }) {
       await load();
       await loadSuggestions();
     } catch {
-      setError("Network error.");
+      showError("Network error.");
     } finally {
       setBusy(false);
     }
@@ -641,7 +640,6 @@ export default function DayBookApp({ userRole = "staff" }) {
             </div>
           ) : null}
 
-          {error ? <p className="admin-error">{error}</p> : null}
           <button className="admin-btn ledger-quick-submit" type="submit" disabled={busy}>
             {busy ? "Saving…" : simple ? `Add ${categoryLabel}` : "Save entry"}
           </button>
@@ -656,14 +654,20 @@ export default function DayBookApp({ userRole = "staff" }) {
   }
 
   async function removeEntry(id) {
-    if (!canEdit || !window.confirm("Remove this line?")) return;
+    if (!canEdit) return;
+    const ok = await confirmAction({
+      title: "Remove entry?",
+      text: "Remove this line from daily accounts?",
+      confirmText: "Remove",
+    });
+    if (!ok) return;
     const res = await fetch(apiUrl(`/api/admin/day-books/entries/${id}`), {
       method: "DELETE",
       credentials: "include",
     });
     const data = await res.json();
     if (!res.ok) {
-      window.alert(data.message || "Could not delete.");
+      showError(data.message || "Could not delete.");
       return;
     }
     await load();
@@ -723,7 +727,7 @@ export default function DayBookApp({ userRole = "staff" }) {
     <div className="ledger-app ledger-flow">
       <header className="ledger-top">
         <div className="ledger-top-copy">
-          <h1>Day book</h1>
+          <h1>Daily Accounts</h1>
           <p>Daily shop accounting — recharge, M/T, accessories, repair, payment &amp; more.</p>
         </div>
         <div className="ledger-top-actions ledger-toolbar-desktop">
@@ -737,14 +741,13 @@ export default function DayBookApp({ userRole = "staff" }) {
         </div>
       </header>
 
-      {loadError ? <p className="admin-error">{loadError}</p> : null}
       {book && isRangeView ? (
         <p className="ledger-hint">
           Showing combined totals for the selected range. Pick a single day in the date range to add or edit entries.
         </p>
       ) : null}
       {!canEdit && book && !isRangeView ? (
-        <p className="ledger-hint">View only — staff can edit today's book only.</p>
+        <p className="ledger-hint">View only — staff can edit today&apos;s accounts only.</p>
       ) : null}
 
       {totals ? (

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import PeopleSearch from "@/app/components/PeopleSearch";
+import SwalMessage from "@/app/components/SwalMessage";
 import UserForm from "@/app/components/UserForm";
 import { getSessionUser } from "@/lib/auth";
 import { dbErrorMessage, ensureLeadsTable, getPool } from "@/lib/db";
@@ -72,7 +73,7 @@ export default async function AdminStaffPage({ searchParams }) {
         </div>
       </div>
 
-      {loadError ? <p className="admin-error">{loadError}</p> : null}
+      {loadError ? <SwalMessage message={loadError} /> : null}
 
       {!loadError ? (
         <PeopleSearch action="/admin/staff" query={q} placeholder="Search staff name or email" />

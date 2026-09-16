@@ -1,4 +1,5 @@
 import PeopleSearch from "@/app/components/PeopleSearch";
+import SwalMessage from "@/app/components/SwalMessage";
 import { dbErrorMessage, ensureLeadsTable, getPool } from "@/lib/db";
 import { formatPhone, telHref, titleCase } from "@/lib/format";
 import { distanceKm } from "@/lib/geo";
@@ -72,7 +73,7 @@ export default async function AdminCustomersPage({ searchParams }) {
         <span className="admin-count-pill">{customers.length} verified</span>
       </div>
 
-      {loadError ? <p className="admin-error">{loadError}</p> : null}
+      {loadError ? <SwalMessage message={loadError} /> : null}
 
       {!loadError ? (
         <PeopleSearch action="/admin/customers" query={q} placeholder="Search customer name or mobile" />

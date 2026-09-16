@@ -1,5 +1,6 @@
 import AdminPwaPrompt from "../components/AdminPwaPrompt";
 import { getBasePath } from "@/lib/basePath";
+import "sweetalert2/dist/sweetalert2.min.css";
 import "../admin.css";
 
 const BASE_PATH = getBasePath();

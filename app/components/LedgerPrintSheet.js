@@ -79,7 +79,7 @@ export default function LedgerPrintSheet({
       <header className="ledger-print-head">
         <div>
           <h1>Ganpati Mobile Point</h1>
-          <p>Day book ledger · Nirman Nagar, Jaipur</p>
+          <p>Daily Accounts · Nirman Nagar, Jaipur</p>
         </div>
         <div className="ledger-print-meta">
           <p>

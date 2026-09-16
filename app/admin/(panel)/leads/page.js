@@ -1,5 +1,6 @@
 import LeadActions from "@/app/components/LeadActions";
 import LeadsFilters from "@/app/components/LeadsFilters";
+import SwalMessage from "@/app/components/SwalMessage";
 import { dbErrorMessage, ensureLeadsTable, getPool } from "@/lib/db";
 import { formatPhone, telHref, titleCase } from "@/lib/format";
 import { distanceKm } from "@/lib/geo";
@@ -158,7 +159,7 @@ export default async function AdminLeadsPage({ searchParams }) {
         <p className="admin-count">{leads.length}</p>
       </div>
 
-      {loadError ? <p className="admin-error">{loadError}</p> : null}
+      {loadError ? <SwalMessage message={loadError} /> : null}
 
       {!loadError ? (
         <LeadsFilters

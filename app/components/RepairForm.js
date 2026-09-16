@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { apiUrl } from "@/lib/basePath";
+import { showError } from "@/lib/swal";
 
 const BRANDS = [
   "Apple",
@@ -135,7 +136,6 @@ export default function RepairForm() {
   const [errors, setErrors] = useState({});
   const [saved, setSaved] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [serverError, setServerError] = useState("");
   const [location, setLocation] = useState(null);
   const [locationNote, setLocationNote] = useState("Asking for location to estimate distance to the shop...");
 
@@ -162,7 +162,6 @@ export default function RepairForm() {
 
   async function onSubmit(event) {
     event.preventDefault();
-    setServerError("");
     setBusy(true);
     try {
       const coords = location || (await readLocation());
@@ -178,13 +177,13 @@ export default function RepairForm() {
       const data = await response.json();
       if (!response.ok) {
         setErrors(data.errors || {});
-        setServerError(data.message || "");
+        showError(data.message || "Could not submit your request. Please check the form.");
         return;
       }
       setSaved(data.lead);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch {
-      setServerError("Network error. Please try again.");
+      showError("Network error. Please try again.");
     } finally {
       setBusy(false);
     }
@@ -375,7 +374,6 @@ export default function RepairForm() {
                     />
                   </label>
 
-                  {serverError ? <p className="error">{serverError}</p> : null}
                   <p className="location-note">{locationNote}</p>
 
                   <button className="submit pulse" type="submit" disabled={busy}>
