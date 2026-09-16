@@ -3,6 +3,7 @@ import { getSessionUser } from "@/lib/auth";
 import { ensureLeadsTable, getPool, getRoleId } from "@/lib/db";
 import { titleCase } from "@/lib/format";
 import { hashPassword } from "@/lib/password";
+import { DEFAULT_STAFF_PASSWORD } from "@/lib/staff";
 import { canManageUsers } from "@/lib/roles";
 import { USER_WITH_ROLE } from "@/lib/users";
 
@@ -39,7 +40,6 @@ export async function POST(request) {
   const body = await request.json().catch(() => ({}));
   const name = titleCase(body.name);
   const email = String(body.email || "").trim().toLowerCase();
-  const password = String(body.password || "");
   const role = String(body.role || "staff").toLowerCase();
 
   if (!name) {
@@ -47,9 +47,6 @@ export async function POST(request) {
   }
   if (!email || !email.includes("@")) {
     return NextResponse.json({ ok: false, message: "A valid email is required." }, { status: 400 });
-  }
-  if (password.length < 6) {
-    return NextResponse.json({ ok: false, message: "Password must be at least 6 characters." }, { status: 400 });
   }
   if (role !== "staff") {
     return NextResponse.json({ ok: false, message: "Only staff can be added here." }, { status: 400 });
@@ -62,9 +59,9 @@ export async function POST(request) {
       return NextResponse.json({ ok: false, message: "Staff role is missing." }, { status: 500 });
     }
     await getPool().execute(
-      `INSERT INTO users (name, email, phone, password_hash, role_id, status)
-       VALUES (?, ?, NULL, ?, ?, 'active')`,
-      [name, email, hashPassword(password), staffRoleId]
+      `INSERT INTO users (name, email, phone, password_hash, must_change_password, role_id, status)
+       VALUES (?, ?, NULL, ?, 1, ?, 'active')`,
+      [name, email, hashPassword(DEFAULT_STAFF_PASSWORD), staffRoleId]
     );
     return NextResponse.json({ ok: true });
   } catch (error) {

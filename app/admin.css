@@ -134,6 +134,154 @@
   font-weight: 700;
 }
 
+.admin-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-profile-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background: #eef1f6;
+  color: #111318;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.admin-profile-link.is-active {
+  box-shadow: 0 0 0 2px #111318;
+}
+
+.admin-profile-page {
+  max-width: 520px;
+}
+
+.admin-profile-head h1 {
+  margin: 0 0 6px;
+  font-size: 24px;
+}
+
+.admin-profile-head p {
+  margin: 0 0 16px;
+  color: #5b6170;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.admin-profile-card {
+  padding: 16px;
+}
+
+.admin-profile-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #eef1f6;
+}
+
+.admin-profile-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 999px;
+  background: #111318;
+  color: #fff;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.admin-profile-meta strong {
+  display: block;
+  font-size: 16px;
+}
+
+.admin-profile-meta p {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: #5b6170;
+}
+
+.admin-profile-role {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #eef1f6;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.admin-profile-form {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-profile-divider {
+  margin-top: 4px;
+}
+
+.admin-profile-divider p {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.admin-profile-divider small {
+  display: block;
+  margin-top: 4px;
+  color: #5b6170;
+  font-size: 12px;
+}
+
+.admin-profile-form .admin-sheet-label > input:not([type="hidden"]) {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid #e6e8ee;
+  border-radius: 12px;
+  font: inherit;
+  font-size: 16px;
+}
+
+.admin-profile-autofill-user {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.admin-profile-password {
+  width: 100%;
+}
+
+.admin-profile-password input {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 44px 10px 12px;
+  border: 1px solid #e6e8ee;
+  border-radius: 12px;
+  font: inherit;
+  font-size: 16px;
+}
+
 .admin-menu-btn {
   display: none;
 }
@@ -203,6 +351,38 @@
 .admin-status.is-staff {
   background: #fef7e0;
   color: #b06000;
+}
+
+.admin-staff-status-actions {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.admin-action-menu-label {
+  margin: 4px 10px 6px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #5b6170;
+}
+
+.admin-staff-status.is-active-account {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.admin-staff-status.is-suspended-account {
+  background: #fee2e2;
+  color: #b42318;
+}
+
+.admin-dots-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .admin-status.is-customer {

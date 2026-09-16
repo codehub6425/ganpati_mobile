@@ -10,6 +10,7 @@ const NAV = [
   { href: "/admin/leads", label: "Leads", icon: "leads" },
   { href: "/admin/accounting", label: "Daily Accounts", icon: "ledger" },
   { href: "/admin/customers", label: "Customers", icon: "people" },
+  { href: "/admin/profile", label: "Profile", icon: "profile" },
   { href: "/admin/staff", label: "Staff", icon: "staff", adminOnly: true },
   { href: "/admin/jobs", label: "Jobs", icon: "jobs", soon: true },
   { href: "/admin/settings", label: "Settings", icon: "settings", soon: true },
@@ -44,11 +45,13 @@ export default function AdminShell({ children, user = null }) {
     ? "Leads"
     : pathname.startsWith("/admin/accounting")
       ? "Daily Accounts"
-      : pathname.startsWith("/admin/customers")
-        ? "Customers"
-        : pathname.startsWith("/admin/staff")
-          ? "Staff"
-          : "Home";
+      : pathname.startsWith("/admin/profile")
+        ? "Profile"
+        : pathname.startsWith("/admin/customers")
+          ? "Customers"
+          : pathname.startsWith("/admin/staff")
+            ? "Staff"
+            : "Home";
 
   return (
     <div className="admin-app">
@@ -98,9 +101,19 @@ export default function AdminShell({ children, user = null }) {
             More
           </button>
           <p className="admin-topbar-title">{pageTitle}</p>
-          <button className="admin-logout" type="button" onClick={logout}>
-            Log out
-          </button>
+          <div className="admin-topbar-actions">
+            <Link
+              href="/admin/profile"
+              className={`admin-profile-link${pathname.startsWith("/admin/profile") ? " is-active" : ""}`}
+              aria-label="My profile"
+              title="My profile"
+            >
+              <span className="admin-profile-link-avatar">{(user?.name || "?").charAt(0).toUpperCase()}</span>
+            </Link>
+            <button className="admin-logout" type="button" onClick={logout}>
+              Log out
+            </button>
+          </div>
         </header>
         <div className="admin-content">{children}</div>
       </div>
@@ -196,6 +209,14 @@ function MenuIcon({ name }) {
         <path
           fill="currentColor"
           d="M5 4h14a2 2 0 0 1 2 2v14a1 1 0 0 1-1 1H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm2 4v2h10V8H7Zm0 4v2h6v-2H7Z"
+        />
+      </svg>
+    ),
+    profile: (
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+        <path
+          fill="currentColor"
+          d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm-7.5 8a6.8 6.8 0 0 1 15 0 1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1Z"
         />
       </svg>
     ),

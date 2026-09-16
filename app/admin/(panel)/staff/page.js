@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import PeopleSearch from "@/app/components/PeopleSearch";
 import SwalMessage from "@/app/components/SwalMessage";
+import StaffStatusActions from "@/app/components/StaffStatusActions";
 import UserForm from "@/app/components/UserForm";
 import { getSessionUser } from "@/lib/auth";
 import { dbErrorMessage, ensureLeadsTable, getPool } from "@/lib/db";
@@ -65,7 +66,7 @@ export default async function AdminStaffPage({ searchParams }) {
       <div className="admin-page-head">
         <div>
           <h1>Staff</h1>
-          <p>Shop staff who can log in. Admin accounts stay hidden from this list.</p>
+          <p>Shop staff who can log in when active. Suspend an account to block login.</p>
         </div>
         <div className="admin-page-actions">
           <p className="admin-count">{staff.length}</p>
@@ -97,9 +98,16 @@ export default async function AdminStaffPage({ searchParams }) {
                     <p className="admin-lead-meta">{person.email || "No email"}</p>
                   </div>
                 </div>
-                <span className="admin-status is-staff">Staff</span>
+                <StaffStatusActions
+                  userId={person.id}
+                  name={person.name}
+                  status={person.status || "active"}
+                  disabled={person.id === actor.id}
+                />
               </div>
-              <p className="admin-lead-foot">Panel access · {person.created_at}</p>
+              <p className="admin-lead-foot">
+                {person.status === "suspended" ? "Login blocked" : "Panel access"} · {person.created_at}
+              </p>
             </article>
           ))}
         </div>

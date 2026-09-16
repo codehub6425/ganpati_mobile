@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { apiUrl } from "@/lib/basePath";
-import { showError } from "@/lib/swal";
+import { DEFAULT_STAFF_PASSWORD } from "@/lib/staff";
+import { showError, showSuccess } from "@/lib/swal";
 
 export default function UserForm() {
   const router = useRouter();
@@ -13,7 +14,6 @@ export default function UserForm() {
   const [busy, setBusy] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
 
   useEffect(() => {
     setMounted(true);
@@ -26,7 +26,7 @@ export default function UserForm() {
       const res = await fetch(apiUrl("/api/admin/users"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password, role: "staff" }),
+        body: JSON.stringify({ name, email, role: "staff" }),
       });
       const data = await res.json();
       if (!data.ok) {
@@ -35,8 +35,10 @@ export default function UserForm() {
       }
       setName("");
       setEmail("");
-      setPassword("");
       setOpen(false);
+      await showSuccess(
+        `Staff added. They sign in with default password ${DEFAULT_STAFF_PASSWORD} and must change it on first login.`
+      );
       router.refresh();
     } catch {
       showError("Could not add this user.");
@@ -54,7 +56,10 @@ export default function UserForm() {
               <div className="admin-modal-head">
                 <div>
                   <h3>Add staff</h3>
-                  <p>Give this person shop login. They will not see admin accounts.</p>
+                  <p>
+                    Default password: <strong>{DEFAULT_STAFF_PASSWORD}</strong>. Staff must set a new
+                    password on first login.
+                  </p>
                 </div>
                 <button className="admin-reset-btn" type="button" onClick={() => setOpen(false)}>
                   Close
@@ -68,14 +73,6 @@ export default function UserForm() {
                   type="email"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
-                  required
-                />
-                <label className="admin-sheet-label">Password</label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  minLength={6}
                   required
                 />
                 <button className="admin-follow-save" type="submit" disabled={busy}>

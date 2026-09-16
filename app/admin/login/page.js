@@ -35,7 +35,7 @@ export default function AdminLoginPage() {
         showError(data.message || "Login failed.");
         return;
       }
-      router.push("/admin");
+      router.push(data.must_change_password ? "/admin/change-password" : "/admin");
       router.refresh();
     } catch {
       showError("Could not reach the server. Check that npm run dev is running.");
@@ -56,12 +56,13 @@ export default function AdminLoginPage() {
         </div>
         <h1>Welcome back</h1>
         <p>Sign in with your admin or staff account to manage leads.</p>
-        <form onSubmit={onSubmit}>
+        <form onSubmit={onSubmit} autoComplete="on">
           <label>
             <span>Email</span>
             <input
               type="email"
-              autoComplete="username"
+              name="username"
+              autoComplete="username email"
               placeholder="you@shop.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -73,6 +74,7 @@ export default function AdminLoginPage() {
             <div className="login-password">
               <input
                 type={showPassword ? "text" : "password"}
+                name="password"
                 autoComplete="current-password"
                 placeholder="Enter password"
                 value={password}
