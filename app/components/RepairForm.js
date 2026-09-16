@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { apiUrl } from "@/lib/basePath";
+import { useEffect, useId, useRef, useState } from "react";
+import { apiUrl, assetUrl } from "@/lib/basePath";
 import { showError } from "@/lib/swal";
 
 const BRANDS = [
@@ -112,6 +112,20 @@ function repairWhatsappMessage({ brand = "", problem = "", name = "", note = "" 
   return lines.join(" ");
 }
 
+function validateForm(values) {
+  const errors = {};
+  const name = String(values.name || "").trim();
+  const phone = String(values.phone || "").replace(/\D/g, "");
+
+  if (name.length < 2) errors.name = "Please enter your name.";
+  if (!/^[6-9]\d{9}$/.test(phone)) {
+    errors.phone = "Enter a valid 10-digit Indian mobile number.";
+  }
+  if (!values.brand) errors.brand = "Please select your phone brand.";
+  if (!values.problem) errors.problem = "Please choose the problem type.";
+  return errors;
+}
+
 function readLocation() {
   return new Promise((resolve) => {
     if (!navigator.geolocation) {
@@ -132,8 +146,14 @@ function readLocation() {
 }
 
 export default function RepairForm() {
+  const formId = useId();
+  const nameRef = useRef(null);
+  const phoneRef = useRef(null);
+  const brandRef = useRef(null);
+  const problemRef = useRef(null);
   const [values, setValues] = useState(empty);
   const [errors, setErrors] = useState({});
+  const [focusTick, setFocusTick] = useState(0);
   const [saved, setSaved] = useState(null);
   const [busy, setBusy] = useState(false);
   const [location, setLocation] = useState(null);
@@ -160,8 +180,55 @@ export default function RepairForm() {
     setErrors((prev) => ({ ...prev, [name]: "" }));
   }
 
+  function scrollToField(node) {
+    const block = node?.closest?.(".field, fieldset.chips-field") || node;
+    block?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  function focusFirstError(nextErrors) {
+    const steps = [
+      {
+        key: "name",
+        node: () => nameRef.current,
+        focus: () => nameRef.current?.focus({ preventScroll: true }),
+      },
+      {
+        key: "phone",
+        node: () => phoneRef.current,
+        focus: () => phoneRef.current?.focus({ preventScroll: true }),
+      },
+      {
+        key: "brand",
+        node: () => brandRef.current,
+        focus: () => brandRef.current?.querySelector("input")?.focus(),
+      },
+      {
+        key: "problem",
+        node: () => problemRef.current,
+        focus: () => problemRef.current?.querySelector("input")?.focus(),
+      },
+    ];
+
+    const target = steps.find((step) => nextErrors[step.key]);
+    const node = target?.node?.();
+    if (!node) return;
+
+    scrollToField(node);
+    window.setTimeout(() => {
+      target.focus();
+      setFocusTick((n) => n + 1);
+    }, 280);
+  }
+
   async function onSubmit(event) {
     event.preventDefault();
+    const nextErrors = validateForm(values);
+    if (Object.keys(nextErrors).length) {
+      setErrors(nextErrors);
+      focusFirstError(nextErrors);
+      return;
+    }
+    setErrors({});
     setBusy(true);
     try {
       const coords = location || (await readLocation());
@@ -273,13 +340,18 @@ export default function RepairForm() {
                   </div>
                   <h2 id="form-title">Request a callback</h2>
                   <p className="panel-lead">No login. We call you with a price and time.</p>
+                  <p className="form-mobile-hint">Name and mobile first — then use the button fixed at the bottom.</p>
                 </div>
 
-                <form onSubmit={onSubmit} noValidate>
+                <form id={formId} className="repair-callback-form" onSubmit={onSubmit} noValidate>
                   <div className="field-row">
-                    <label className={`field${errors.name ? " is-invalid" : ""}`}>
+                    <label
+                      className={`field${errors.name ? " is-invalid is-highlight" : ""}`}
+                      data-focus={focusTick && errors.name ? "1" : undefined}
+                    >
                       <span>Your name</span>
                       <input
+                        ref={nameRef}
                         name="name"
                         type="text"
                         autoComplete="name"
@@ -287,16 +359,20 @@ export default function RepairForm() {
                         placeholder="e.g. Rahul Sharma"
                         value={values.name}
                         onChange={(e) => update("name", e.target.value)}
-                        required
+                        aria-invalid={Boolean(errors.name)}
                       />
                       <small className="error">{errors.name || ""}</small>
                     </label>
 
-                    <label className={`field${errors.phone ? " is-invalid" : ""}`}>
+                    <label
+                      className={`field${errors.phone ? " is-invalid is-highlight" : ""}`}
+                      data-focus={focusTick && errors.phone ? "1" : undefined}
+                    >
                       <span>Mobile number</span>
                       <span className="phone-wrap">
                         <span className="phone-prefix">+91</span>
                         <input
+                          ref={phoneRef}
                           name="phone"
                           type="tel"
                           inputMode="numeric"
@@ -307,14 +383,18 @@ export default function RepairForm() {
                           onChange={(e) =>
                             update("phone", e.target.value.replace(/\D/g, "").slice(0, 10))
                           }
-                          required
+                          aria-invalid={Boolean(errors.phone)}
                         />
                       </span>
                       <small className="error">{errors.phone || ""}</small>
                     </label>
                   </div>
 
-                  <fieldset className={`field chips-field${errors.brand ? " is-invalid" : ""}`}>
+                  <fieldset
+                    ref={brandRef}
+                    className={`field chips-field${errors.brand ? " is-invalid is-highlight" : ""}`}
+                    data-focus={focusTick && errors.brand ? "1" : undefined}
+                  >
                     <legend>Select your phone brand</legend>
                     <div className="choice-grid brand-grid" role="radiogroup" aria-label="Phone brand">
                       {BRANDS.map((brand) => (
@@ -325,7 +405,6 @@ export default function RepairForm() {
                             value={brand}
                             checked={values.brand === brand}
                             onChange={() => update("brand", brand)}
-                            required
                           />
                           <span>
                             <b>{brand}</b>
@@ -336,7 +415,11 @@ export default function RepairForm() {
                     <small className="error">{errors.brand || ""}</small>
                   </fieldset>
 
-                  <fieldset className={`field chips-field${errors.problem ? " is-invalid" : ""}`}>
+                  <fieldset
+                    ref={problemRef}
+                    className={`field chips-field${errors.problem ? " is-invalid is-highlight" : ""}`}
+                    data-focus={focusTick && errors.problem ? "1" : undefined}
+                  >
                     <legend>What is the problem?</legend>
                     <div className="choice-grid problem-grid" role="radiogroup" aria-label="Problem type">
                       {PROBLEMS.map((item) => (
@@ -347,7 +430,6 @@ export default function RepairForm() {
                             value={item.value}
                             checked={values.problem === item.value}
                             onChange={() => update("problem", item.value)}
-                            required
                           />
                           <span>
                             <i aria-hidden="true">{item.icon}</i>
@@ -376,17 +458,19 @@ export default function RepairForm() {
 
                   <p className="location-note">{locationNote}</p>
 
-                  <button className="submit pulse" type="submit" disabled={busy}>
-                    {busy ? "Sending..." : "Request a callback"}
-                  </button>
-                  <a
-                    className="submit ghost wa-form-btn"
-                    href={selectedWhatsapp}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    WhatsApp this request
-                  </a>
+                  <div className="form-actions-inline">
+                    <button className="submit pulse" type="submit" disabled={busy}>
+                      {busy ? "Sending..." : "Request a callback"}
+                    </button>
+                    <a
+                      className="submit ghost wa-form-btn"
+                      href={selectedWhatsapp}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      WhatsApp this request
+                    </a>
+                  </div>
                 </form>
               </section>
             ) : (
@@ -463,6 +547,37 @@ export default function RepairForm() {
           </aside>
         </div>
       </main>
+
+      {!saved ? (
+        <div className="form-sticky-wrap" role="region" aria-label="Send repair request">
+          <div className="form-sticky-guide" aria-hidden="true">
+            <img
+              className="form-sticky-mascot"
+              src={assetUrl("/images/form-guide-mascot.png")}
+              alt=""
+              width={120}
+              height={160}
+              loading="lazy"
+              decoding="async"
+            />
+            <span className="form-sticky-pointer">Tap here</span>
+          </div>
+          <div className="form-sticky-bar">
+            <p className="form-sticky-label">Send your request</p>
+            <button className="submit pulse" type="submit" form={formId} disabled={busy}>
+              {busy ? "Sending..." : "Request a callback"}
+            </button>
+            <a
+              className="submit ghost wa-form-btn form-sticky-wa"
+              href={selectedWhatsapp}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              WhatsApp this request
+            </a>
+          </div>
+        </div>
+      ) : null}
 
       <footer className="site-footer">
         <p className="footer-name">Ganpati Mobile Point</p>
