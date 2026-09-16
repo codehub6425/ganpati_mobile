@@ -1,4 +1,4 @@
-const CACHE_NAME = "gmp-admin-v5";
+const CACHE_NAME = "gmp-admin-v4";
 
 self.addEventListener("install", () => {
   self.skipWaiting();

@@ -3,14 +3,42 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { getClientBasePath } from "@/lib/basePath";
-import { isInAppBrowser, isMobileAdminDevice, isStandaloneDisplay } from "@/lib/pwa-client";
 
 const DISMISS_KEY = "gmp-admin-pwa-dismissed";
 const INSTALLED_KEY = "gmp-admin-pwa-installed";
+const LAUNCH_KEY = "gmp-admin-pwa-launch-tried";
 const DISMISS_MS = 24 * 60 * 60 * 1000;
+
+function adminStartUrl() {
+  return `${window.location.origin}${getClientBasePath()}/admin/login`;
+}
+
+function isStandalone() {
+  return (
+    window.matchMedia("(display-mode: standalone)").matches ||
+    window.navigator.standalone === true
+  );
+}
+
+function isMobileScreen() {
+  const narrow = window.matchMedia("(max-width: 860px)").matches;
+  const phone = /Android|iPhone|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(
+    navigator.userAgent
+  );
+  return narrow || (phone && window.innerWidth <= 1024);
+}
 
 function isIos() {
   return /iPhone|iPad|iPod/i.test(navigator.userAgent) && !window.MSStream;
+}
+
+function isAndroid() {
+  return /Android/i.test(navigator.userAgent);
+}
+
+function isInAppBrowser() {
+  const ua = navigator.userAgent || "";
+  return /FBAN|FBAV|Instagram|Line\/|WhatsApp|Twitter|TikTok/i.test(ua) || /; wv\)/i.test(ua);
 }
 
 function currentPrompt() {
@@ -33,7 +61,7 @@ function registerAdminWorker() {
 }
 
 async function isAppInstalled() {
-  if (isStandaloneDisplay()) return true;
+  if (isStandalone()) return true;
   if (localStorage.getItem(INSTALLED_KEY) === "1") return true;
   try {
     if (navigator.getInstalledRelatedApps) {
@@ -58,6 +86,16 @@ function markInstalled() {
   localStorage.setItem(INSTALLED_KEY, "1");
 }
 
+function openInstalledApp() {
+  const startUrl = adminStartUrl();
+  const url = new URL(startUrl);
+  if (isAndroid()) {
+    window.location.href = `intent://${url.host}${url.pathname}${url.search}#Intent;scheme=https;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;S.browser_fallback_url=${encodeURIComponent(startUrl)};end`;
+    return;
+  }
+  window.location.replace(startUrl);
+}
+
 function openInChrome() {
   const href = window.location.href.replace(/^https?:\/\//, "");
   window.location.href = `intent://${href}#Intent;scheme=https;package=com.android.chrome;end`;
@@ -70,12 +108,11 @@ export default function AdminPwaPrompt() {
   const [busy, setBusy] = useState(false);
   const [iosHelp, setIosHelp] = useState(false);
   const [failHint, setFailHint] = useState(false);
-  const [openAppHelp, setOpenAppHelp] = useState(false);
 
   useEffect(() => {
     if (!pathname?.startsWith("/admin")) return;
 
-    if (isStandaloneDisplay()) {
+    if (isStandalone()) {
       markInstalled();
       return;
     }
@@ -98,14 +135,19 @@ export default function AdminPwaPrompt() {
       if (cancelled) return;
 
       if (installed) {
-        if (isMobileAdminDevice()) {
+        if (!sessionStorage.getItem(LAUNCH_KEY)) {
+          sessionStorage.setItem(LAUNCH_KEY, "1");
+          openInstalledApp();
+          return;
+        }
+        if (isMobileScreen()) {
           setMode("open");
           setOpen(true);
         }
         return;
       }
 
-      if (!isDismissedRecently() && isMobileAdminDevice()) {
+      if (!isDismissedRecently() && isMobileScreen()) {
         setMode("install");
         setOpen(true);
       }
@@ -125,7 +167,7 @@ export default function AdminPwaPrompt() {
 
   function install() {
     if (mode === "open") {
-      setOpenAppHelp(true);
+      openInstalledApp();
       return;
     }
 
@@ -164,8 +206,7 @@ export default function AdminPwaPrompt() {
     isAppInstalled().then((installed) => {
       if (installed) {
         markInstalled();
-        setMode("open");
-        setOpenAppHelp(true);
+        openInstalledApp();
         return;
       }
       setFailHint(true);
@@ -194,24 +235,11 @@ export default function AdminPwaPrompt() {
         </p>
         <p className="pwa-hint">
           {isOpenMode
-            ? "Do not open from Chrome bookmarks — that shows the website bar at the top."
+            ? "Tap below to open the installed app."
             : failHint
               ? "Open the Chrome menu (3 dots), then tap Install app."
               : "Install now to open admin like a mobile app."}
         </p>
-        {isOpenMode || openAppHelp ? (
-          <ol className="pwa-steps">
-            <li>
-              Go to your phone <b>home screen</b>
-            </li>
-            <li>
-              Tap the <b>Ganpati Admin</b> icon (not the Chrome icon)
-            </li>
-            <li>
-              If you only see Chrome, use menu → <b>Install app</b> again
-            </li>
-          </ol>
-        ) : null}
         {iosHelp ? (
           <ol className="pwa-steps">
             <li>
@@ -224,7 +252,7 @@ export default function AdminPwaPrompt() {
         ) : null}
         <div className="pwa-actions">
           <button className="admin-btn" type="button" onClick={install} disabled={busy}>
-            {busy ? "Installing..." : isOpenMode ? "How to open full app" : "Install app"}
+            {busy ? "Installing..." : isOpenMode ? "Open app" : "Install app"}
           </button>
           <button className="pwa-later" type="button" onClick={dismiss}>
             Not now
