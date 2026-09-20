@@ -8,7 +8,7 @@ import "../../admin.css";
 
 export default function AdminLoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -21,7 +21,7 @@ export default function AdminLoginPage() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ login, password }),
       });
       const raw = await response.text();
       let data = {};
@@ -55,17 +55,17 @@ export default function AdminLoginPage() {
           </div>
         </div>
         <h1>Welcome back</h1>
-        <p>Sign in with your admin or staff account to manage leads.</p>
+        <p>Sign in with mobile number (or email) and your password.</p>
         <form onSubmit={onSubmit} autoComplete="on">
           <label>
-            <span>Email</span>
+            <span>Mobile or email</span>
             <input
-              type="email"
+              type="text"
               name="username"
-              autoComplete="username email"
-              placeholder="you@shop.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="username"
+              placeholder="9876543210 or you@shop.com"
+              value={login}
+              onChange={(e) => setLogin(e.target.value)}
               required
             />
           </label>

@@ -6,11 +6,22 @@ import { createPortal } from "react-dom";
 import { apiUrl } from "@/lib/basePath";
 import { confirmAction, showError, showSuccess } from "@/lib/swal";
 
-export default function StaffStatusActions({ userId, status, name = "", disabled = false }) {
+export default function StaffStatusActions({
+  userId,
+  status,
+  name = "",
+  phone = "",
+  email = "",
+  blockSuspend = false,
+}) {
   const router = useRouter();
   const dotsRef = useRef(null);
   const menuRef = useRef(null);
   const [busy, setBusy] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [nameDraft, setNameDraft] = useState(name || "");
+  const [phoneDraft, setPhoneDraft] = useState(phone || "");
+  const [emailDraft, setEmailDraft] = useState(email || "");
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
   const [mounted, setMounted] = useState(false);
@@ -19,6 +30,14 @@ export default function StaffStatusActions({ userId, status, name = "", disabled
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (!editOpen) {
+      setNameDraft(name || "");
+      setPhoneDraft(phone || "");
+      setEmailDraft(email || "");
+    }
+  }, [name, phone, email, editOpen]);
 
   useEffect(() => {
     if (!menuOpen) return undefined;
@@ -50,7 +69,6 @@ export default function StaffStatusActions({ userId, status, name = "", disabled
   }, [menuOpen]);
 
   function toggleMenu() {
-    if (disabled) return;
     if (menuOpen) {
       setMenuOpen(false);
       return;
@@ -68,8 +86,69 @@ export default function StaffStatusActions({ userId, status, name = "", disabled
     setMenuOpen(true);
   }
 
+  function openEditDetails() {
+    setMenuOpen(false);
+    setNameDraft(name || "");
+    setPhoneDraft(phone || "");
+    setEmailDraft(email || "");
+    setEditOpen(true);
+  }
+
+  function validateProfileDraft() {
+    const nameTrim = nameDraft.trim();
+    const emailTrim = emailDraft.trim().toLowerCase();
+    const phoneTrim = phoneDraft.trim();
+    if (!nameTrim) {
+      showError("Name is required.");
+      return false;
+    }
+    if (!emailTrim && !phoneTrim) {
+      showError("Enter mobile number (or email if no mobile).");
+      return false;
+    }
+    if (emailTrim && !emailTrim.includes("@")) {
+      showError("Enter a valid email address.");
+      return false;
+    }
+    if (phoneTrim && phoneTrim.length !== 10) {
+      showError("Enter a valid 10-digit mobile number.");
+      return false;
+    }
+    return true;
+  }
+
+  async function saveDetails(event) {
+    event.preventDefault();
+    if (busy || !validateProfileDraft()) return;
+    setBusy(true);
+    try {
+      const res = await fetch(apiUrl(`/api/admin/users/${userId}`), {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: nameDraft.trim(),
+          email: emailDraft.trim().toLowerCase(),
+          phone: phoneDraft.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        showError(data.message || "Could not update staff.");
+        return;
+      }
+      setEditOpen(false);
+      await showSuccess("Staff details updated.");
+      router.refresh();
+    } catch {
+      showError("Network error.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function setAccountStatus(next) {
-    if (busy || disabled) return;
+    if (busy || blockSuspend) return;
     setMenuOpen(false);
 
     if (next === "suspended") {
@@ -116,13 +195,23 @@ export default function StaffStatusActions({ userId, status, name = "", disabled
             role="menu"
             style={{ top: menuPos.top, left: menuPos.left }}
           >
-            <p className="admin-action-menu-label">Update status</p>
+            <p className="admin-action-menu-label">Staff actions</p>
+            <button
+              className="admin-action-item"
+              type="button"
+              role="menuitem"
+              disabled={busy}
+              onClick={openEditDetails}
+            >
+              Edit details
+            </button>
             {isActive ? (
               <button
                 className="admin-action-item is-danger"
                 type="button"
                 role="menuitem"
-                disabled={busy}
+                disabled={busy || blockSuspend}
+                title={blockSuspend ? "You cannot suspend your own account." : undefined}
                 onClick={() => setAccountStatus("suspended")}
               >
                 {busy ? "Updating…" : "Suspend account"}
@@ -143,6 +232,69 @@ export default function StaffStatusActions({ userId, status, name = "", disabled
         )
       : null;
 
+  const editModal =
+    mounted && editOpen
+      ? createPortal(
+          <div className="admin-modal" role="dialog" aria-modal="true">
+            <button
+              className="admin-modal-backdrop"
+              type="button"
+              onClick={() => !busy && setEditOpen(false)}
+            />
+            <div className="admin-modal-card">
+              <div className="admin-modal-head">
+                <div>
+                  <h3>Edit staff</h3>
+                  <p>Update name, mobile, and email. Mobile is preferred for login.</p>
+                </div>
+                <button
+                  className="admin-reset-btn"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => setEditOpen(false)}
+                >
+                  Close
+                </button>
+              </div>
+              <form className="admin-follow" onSubmit={saveDetails} noValidate>
+                <label className="admin-sheet-label">Name</label>
+                <input
+                  value={nameDraft}
+                  onChange={(event) => setNameDraft(event.target.value)}
+                  required
+                />
+                <label className="admin-sheet-label">Mobile</label>
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  autoComplete="tel"
+                  placeholder="10-digit mobile (preferred for login)"
+                  maxLength={10}
+                  value={phoneDraft}
+                  onChange={(event) =>
+                    setPhoneDraft(event.target.value.replace(/\D/g, "").slice(0, 10))
+                  }
+                />
+                <label className="admin-sheet-label">Email</label>
+                <input
+                  type="email"
+                  placeholder="Optional if mobile is added"
+                  value={emailDraft}
+                  onChange={(event) => setEmailDraft(event.target.value)}
+                />
+                <p className="admin-field-hint">
+                  At least mobile or email is required. Clear a field only if the other login is set.
+                </p>
+                <button className="admin-follow-save" type="submit" disabled={busy}>
+                  {busy ? "Saving…" : "Save changes"}
+                </button>
+              </form>
+            </div>
+          </div>,
+          document.body
+        )
+      : null;
+
   return (
     <>
       <div className="admin-staff-status-actions">
@@ -158,13 +310,13 @@ export default function StaffStatusActions({ userId, status, name = "", disabled
           aria-label={`More actions for ${name || "staff"}`}
           aria-haspopup="menu"
           aria-expanded={menuOpen}
-          disabled={disabled}
           onClick={toggleMenu}
         >
           <DotsIcon />
         </button>
       </div>
       {menu}
+      {editModal}
     </>
   );
 }

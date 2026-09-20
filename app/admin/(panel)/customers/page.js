@@ -1,17 +1,8 @@
 import PeopleSearch from "@/app/components/PeopleSearch";
 import SwalMessage from "@/app/components/SwalMessage";
 import { dbErrorMessage, ensureLeadsTable, getPool } from "@/lib/db";
-import { formatPhone, telHref, titleCase } from "@/lib/format";
+import { formatAdminDateTimeMedium, formatPhone, telHref, titleCase } from "@/lib/format";
 import { distanceKm } from "@/lib/geo";
-
-function formatDate(value) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value || "");
-  return date.toLocaleString("en-IN", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
-}
 
 export default async function AdminCustomersPage({ searchParams }) {
   const params = await searchParams;
@@ -43,7 +34,9 @@ export default async function AdminCustomersPage({ searchParams }) {
           initial: name.charAt(0) || "?",
           phone_label: row.phone ? formatPhone(row.phone) : "—",
           call_href: telHref(row.phone),
-          verified_at: row.verified_at ? formatDate(row.verified_at) : formatDate(row.created_at),
+          verified_at: row.verified_at ?
+            formatAdminDateTimeMedium(row.verified_at)
+          : formatAdminDateTimeMedium(row.created_at),
           distance_label:
             liveDistance == null ? "Location not shared" : `${liveDistance} km from shop`,
         };

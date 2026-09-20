@@ -14,6 +14,7 @@ export default function UserForm() {
   const [busy, setBusy] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
 
   useEffect(() => {
     setMounted(true);
@@ -21,12 +22,31 @@ export default function UserForm() {
 
   async function onSubmit(event) {
     event.preventDefault();
+    const emailTrim = email.trim().toLowerCase();
+    const phoneTrim = phone.trim();
+    if (!emailTrim && !phoneTrim) {
+      showError("Enter mobile number (or email if no mobile).");
+      return;
+    }
+    if (emailTrim && !emailTrim.includes("@")) {
+      showError("Enter a valid email address.");
+      return;
+    }
+    if (phoneTrim && phoneTrim.length !== 10) {
+      showError("Enter a valid 10-digit mobile number.");
+      return;
+    }
     setBusy(true);
     try {
       const res = await fetch(apiUrl("/api/admin/users"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, role: "staff" }),
+        body: JSON.stringify({
+          name,
+          email: emailTrim || undefined,
+          phone: phoneTrim || undefined,
+          role: "staff",
+        }),
       });
       const data = await res.json();
       if (!data.ok) {
@@ -35,9 +55,10 @@ export default function UserForm() {
       }
       setName("");
       setEmail("");
+      setPhone("");
       setOpen(false);
       await showSuccess(
-        `Staff added. They sign in with default password ${DEFAULT_STAFF_PASSWORD} and must change it on first login.`
+        `Staff added. They sign in with mobile (or email) and default password ${DEFAULT_STAFF_PASSWORD}, then set a new password on first login.`
       );
       router.refresh();
     } catch {
@@ -65,16 +86,32 @@ export default function UserForm() {
                   Close
                 </button>
               </div>
-              <form className="admin-follow" onSubmit={onSubmit}>
+              <form className="admin-follow" onSubmit={onSubmit} noValidate>
                 <label className="admin-sheet-label">Name</label>
                 <input value={name} onChange={(event) => setName(event.target.value)} required />
+                <label className="admin-sheet-label">Mobile</label>
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  autoComplete="tel"
+                  placeholder="10-digit mobile (preferred for login)"
+                  maxLength={10}
+                  value={phone}
+                  onChange={(event) =>
+                    setPhone(event.target.value.replace(/\D/g, "").slice(0, 10))
+                  }
+                />
                 <label className="admin-sheet-label">Email</label>
                 <input
                   type="email"
                   value={email}
+                  placeholder="Optional if mobile is added"
                   onChange={(event) => setEmail(event.target.value)}
-                  required
                 />
+                <p className="admin-field-hint">
+                  Mobile is preferred. Add email only when needed — at least one of mobile or email is
+                  required.
+                </p>
                 <button className="admin-follow-save" type="submit" disabled={busy}>
                   {busy ? "Saving…" : "Save staff"}
                 </button>

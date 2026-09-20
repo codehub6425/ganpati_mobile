@@ -1,6 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import {
+  ADMIN_TIME_ZONE,
+  adminCalendarAnchor,
+  adminMonthStartIso,
+  adminShiftIsoDays,
+  adminTodayIso,
+  formatAdminDateFromIso,
+} from "@/lib/format";
 
 const WEEK = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
@@ -19,7 +27,7 @@ function parseIso(iso) {
 
 function formatLabel(from, to) {
   const fmt = (iso) =>
-    parseIso(iso)?.toLocaleDateString("en-IN", {
+    formatAdminDateFromIso(iso, {
       day: "numeric",
       month: "short",
       year: "numeric",
@@ -91,36 +99,30 @@ export default function DateRangeFilter({ from, to, onChange, label = "", varian
   }
 
   function applyPreset(kind) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const todayIso = adminTodayIso();
+    const todayView = adminCalendarAnchor(todayIso);
     if (kind === "today") {
-      const iso = toIso(today);
-      setStart(iso);
-      setEnd(iso);
-      setView(today);
+      setStart(todayIso);
+      setEnd(todayIso);
+      setView(todayView);
       return;
     }
     if (kind === "yesterday") {
-      const y = new Date(today);
-      y.setDate(y.getDate() - 1);
-      const iso = toIso(y);
+      const iso = adminShiftIsoDays(todayIso, -1);
       setStart(iso);
       setEnd(iso);
-      setView(y);
+      setView(adminCalendarAnchor(iso));
       return;
     }
     if (kind === "7") {
-      const startDate = new Date(today);
-      startDate.setDate(startDate.getDate() - 6);
-      setStart(toIso(startDate));
-      setEnd(toIso(today));
-      setView(today);
+      setStart(adminShiftIsoDays(todayIso, -6));
+      setEnd(todayIso);
+      setView(todayView);
       return;
     }
-    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-    setStart(toIso(monthStart));
-    setEnd(toIso(today));
-    setView(today);
+    setStart(adminMonthStartIso(todayIso));
+    setEnd(todayIso);
+    setView(todayView);
   }
 
   function apply() {
@@ -136,7 +138,11 @@ export default function DateRangeFilter({ from, to, onChange, label = "", varian
   }
 
   const cells = daysInView(view);
-  const title = view.toLocaleDateString("en-IN", { month: "long", year: "numeric" });
+  const title = view.toLocaleDateString("en-IN", {
+    timeZone: ADMIN_TIME_ZONE,
+    month: "long",
+    year: "numeric",
+  });
   const selected = Boolean(from || to);
 
   const isField = variant === "field";

@@ -1,6 +1,12 @@
 "use client";
 
-import { LEDGER_CATEGORIES } from "@/lib/ledger";
+import { ADMIN_TIME_ZONE, formatAdminDateFromIso, formatAdminTime } from "@/lib/format";
+import {
+  categoryCollectionTotal,
+  entryRevenueAmount,
+  entryTxnAmount,
+  LEDGER_CATEGORIES,
+} from "@/lib/ledger";
 
 const COLUMN_TITLES = {
   recharge: "Recharge",
@@ -18,26 +24,41 @@ const TOTAL_KEYS = {
   payment: "total_payment",
 };
 
+const TOTAL_GROSS_KEYS = {
+  recharge: "total_recharge_gross",
+  money_transfer: "total_mt_gross",
+};
+
+function categoryTotalCell(totals, cat) {
+  const grossKey = TOTAL_GROSS_KEYS[cat];
+  const profit = totals[TOTAL_KEYS[cat]] ?? 0;
+  const main = grossKey ? categoryCollectionTotal(totals, cat) : profit;
+  const gross = grossKey ? totals[grossKey] ?? 0 : 0;
+  if (grossKey && (gross > 0 || profit > 0)) {
+    return (
+      <>
+        ₹{formatMoney(main)}
+        <br />
+        <small>
+          Txn ₹{formatMoney(gross)} · Profit ₹{formatMoney(profit)}
+        </small>
+      </>
+    );
+  }
+  return <>₹{formatMoney(main)}</>;
+}
+
 function formatMoney(n) {
   return new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(Number(n) || 0);
 }
 
-function formatTime(value) {
-  if (!value) return "";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
-}
-
 function formatHeaderDate(from, to, isRange) {
   const fmt = (iso) =>
-    iso ?
-      new Date(`${iso}T12:00:00`).toLocaleDateString("en-IN", {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-      })
-    : "";
+    formatAdminDateFromIso(iso, {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
   if (!isRange || from === to) return fmt(from);
   return `${fmt(from)} – ${fmt(to)}`;
 }
@@ -67,6 +88,7 @@ export default function LedgerPrintSheet({
   const maxRows = Math.max(1, ...LEDGER_CATEGORIES.map((cat) => grouped[cat].length));
 
   const printedAt = new Date().toLocaleString("en-IN", {
+    timeZone: ADMIN_TIME_ZONE,
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -98,15 +120,19 @@ export default function LedgerPrintSheet({
               {LEDGER_CATEGORIES.map((cat) => (
                 <th key={cat}>{COLUMN_TITLES[cat]}</th>
               ))}
-              <th>Net</th>
+              <th>Collection</th>
             </tr>
           </thead>
           <tbody>
             <tr>
               {LEDGER_CATEGORIES.map((cat) => (
-                <td key={cat}>₹{formatMoney(totals[TOTAL_KEYS[cat]] ?? 0)}</td>
+                <td key={cat}>{categoryTotalCell(totals, cat)}</td>
               ))}
-              <td className="is-net">₹{formatMoney(totals.net_day)}</td>
+              <td className="is-net">
+                ₹{formatMoney(totals.total_collection ?? 0)}
+                <br />
+                <small>Profit ₹{formatMoney(totals.net_day ?? 0)}</small>
+              </td>
             </tr>
           </tbody>
         </table>
@@ -129,10 +155,13 @@ export default function LedgerPrintSheet({
                 return (
                   <td key={cat}>
                     <div className="ledger-print-cell">
-                      <strong>₹{formatMoney(entry.amount)}</strong>
+                      <strong>₹{formatMoney(entryTxnAmount(entry))}</strong>
                       <span>{entryLineLabel(entry, entryItemLabel, entryNote)}</span>
+                      {entryRevenueAmount(entry) > 0 ?
+                        <small>Profit ₹{formatMoney(entryRevenueAmount(entry))}</small>
+                      : null}
                       {isRangeView && entry.book_date ? <small>{entry.book_date}</small> : null}
-                      <small>{formatTime(entry.created_at)}</small>
+                      <small>{formatAdminTime(entry.created_at)}</small>
                     </div>
                   </td>
                 );
@@ -144,7 +173,7 @@ export default function LedgerPrintSheet({
           <tr>
             {LEDGER_CATEGORIES.map((cat) => (
               <td key={cat}>
-                <strong>₹{formatMoney(totals?.[TOTAL_KEYS[cat]] ?? 0)}</strong>
+                <strong>{categoryTotalCell(totals, cat)}</strong>
               </td>
             ))}
           </tr>
@@ -154,9 +183,15 @@ export default function LedgerPrintSheet({
       {totals ? (
         <footer className="ledger-print-foot">
           <p>
-            Inflow (Recharge + M/T + Acc + Repair):{" "}
+            Revenue inflow (commission on Recharge/M/T + Acc + Repair):{" "}
             <strong>₹{formatMoney(totals.net_inflow ?? 0)}</strong>
           </p>
+          {(totals.total_recharge_gross ?? 0) > 0 || (totals.total_mt_gross ?? 0) > 0 ?
+            <p>
+              Gross handled (not revenue): Recharge ₹{formatMoney(totals.total_recharge_gross ?? 0)} · M/T ₹
+              {formatMoney(totals.total_mt_gross ?? 0)}
+            </p>
+          : null}
           <p>
             Payment (out): <strong>₹{formatMoney(totals.total_payment ?? 0)}</strong>
             {(totals.total_payment_taken ?? 0) > 0 ?
@@ -167,7 +202,7 @@ export default function LedgerPrintSheet({
             : null}
           </p>
           <p>
-            Net balance: <strong>₹{formatMoney(totals.net_day ?? 0)}</strong> · {entries.length} transaction
+            Net profit: <strong>₹{formatMoney(totals.net_day ?? 0)}</strong> · {entries.length} transaction
             {entries.length === 1 ? "" : "s"}
           </p>
         </footer>

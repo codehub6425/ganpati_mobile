@@ -2,14 +2,8 @@ import DashboardHome from "@/app/components/DashboardHome";
 import SwalMessage from "@/app/components/SwalMessage";
 import { getSessionUser } from "@/lib/auth";
 import { dbErrorMessage, ensureLeadsTable, getPool } from "@/lib/db";
-import { titleCase } from "@/lib/format";
+import { formatAdminDateTimeMedium, isAdminTodayTimestamp, titleCase } from "@/lib/format";
 import { distanceKm } from "@/lib/geo";
-
-function todayStart() {
-  const date = new Date();
-  date.setHours(0, 0, 0, 0);
-  return date;
-}
 
 export default async function AdminDashboardPage() {
   const user = await getSessionUser();
@@ -42,8 +36,7 @@ export default async function AdminDashboardPage() {
     );
   }
 
-  const start = todayStart();
-  const todayCount = leads.filter((lead) => new Date(lead.created_at) >= start).length;
+  const todayCount = leads.filter((lead) => isAdminTodayTimestamp(lead.created_at)).length;
   const newCount = leads.filter((lead) => lead.status === "new").length;
   const spamCount = leads.filter((lead) => lead.status === "spam").length;
   const recent = leads
@@ -57,10 +50,7 @@ export default async function AdminDashboardPage() {
       problem: lead.problem,
       distance_km: lead.distance_km,
       initial: lead.name.charAt(0) || "?",
-      created_label: new Date(lead.created_at).toLocaleString("en-IN", {
-        dateStyle: "medium",
-        timeStyle: "short",
-      }),
+      created_label: formatAdminDateTimeMedium(lead.created_at),
     }));
 
   const stats = [

@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { ensureLeadsTable, getPool } from "@/lib/db";
 import {
+  commissionEligible,
+  loadCommissionRules,
+  resolveCommissionForSave,
+} from "@/lib/commission";
+import {
   canEditDayBook,
   formatEntryRow,
   normalizeEntryInput,
@@ -9,6 +14,7 @@ import {
   todayDateString,
 } from "@/lib/ledger";
 import { isStaffUser } from "@/lib/roles";
+import { ensureCustomerForLedger } from "@/lib/users";
 
 async function requireStaff() {
   const user = await getSessionUser();
@@ -60,10 +66,35 @@ export async function POST(request) {
 
     const book = await ensureDayBook(db, bookDate, auth.user.id);
     const e = parsed.entry;
+
+    if (e.customer_phone) {
+      const customerName = String(body.customer_name ?? "").trim();
+      const ensured = await ensureCustomerForLedger(db, {
+        phone: e.customer_phone,
+        name: customerName,
+      });
+      if (ensured.error) {
+        return NextResponse.json({ ok: false, message: ensured.error }, { status: 400 });
+      }
+    }
+    const rules = await loadCommissionRules(db);
+    let commission_amount = null;
+    let commission_manual = 0;
+    if (commissionEligible(e.category, e.mt_subtype)) {
+      const resolved = resolveCommissionForSave(
+        rules,
+        e,
+        parsed.commission_amount_input,
+        parsed.commission_manual
+      );
+      commission_amount = resolved.commission_amount;
+      commission_manual = resolved.commission_manual ? 1 : 0;
+    }
+
     const [result] = await db.execute(
       `INSERT INTO ledger_entries
-        (day_book_id, category, amount, transfer_amount, mt_subtype, provider, description, payment_method, lead_id, customer_phone, device_brand, payment_flow, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (day_book_id, category, amount, transfer_amount, mt_subtype, provider, description, payment_method, lead_id, customer_phone, device_brand, payment_flow, commission_amount, commission_manual, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         book.id,
         e.category,
@@ -77,6 +108,8 @@ export async function POST(request) {
         e.customer_phone,
         e.device_brand,
         e.payment_flow,
+        commission_amount,
+        commission_manual,
         auth.user.id,
       ]
     );

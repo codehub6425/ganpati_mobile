@@ -2,17 +2,15 @@ import LeadActions from "@/app/components/LeadActions";
 import LeadsFilters from "@/app/components/LeadsFilters";
 import SwalMessage from "@/app/components/SwalMessage";
 import { dbErrorMessage, ensureLeadsTable, getPool } from "@/lib/db";
-import { formatPhone, telHref, titleCase } from "@/lib/format";
+import {
+  adminEndOfDay,
+  adminStartOfDay,
+  formatAdminDateTimeMedium,
+  formatPhone,
+  telHref,
+  titleCase,
+} from "@/lib/format";
 import { distanceKm } from "@/lib/geo";
-
-function formatDate(value) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value || "");
-  return date.toLocaleString("en-IN", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
-}
 
 function formatDistance(km) {
   if (km == null) return "Location not shared";
@@ -43,7 +41,7 @@ function isFollowLead(lead) {
 
 export default async function AdminLeadsPage({ searchParams }) {
   const params = await searchParams;
-  const status = String(params.status || "all").toLowerCase();
+  const status = String(params.status || "new").toLowerCase();
   const q = String(params.q || "").trim();
   const brand = String(params.brand || "").trim();
   const problem = String(params.problem || "").trim();
@@ -85,7 +83,7 @@ export default async function AdminLeadsPage({ searchParams }) {
         const created = new Date(row.created_at);
         const name = titleCase(row.name);
         const followStatus = row.follow_status || "none";
-        const followAt = row.follow_at ? formatDate(row.follow_at) : "";
+        const followAt = row.follow_at ? formatAdminDateTimeMedium(row.follow_at) : "";
         const followText = followLabel(followStatus);
         const hasFollowup = followStatus !== "none";
         return {
@@ -96,7 +94,7 @@ export default async function AdminLeadsPage({ searchParams }) {
           phone_label: formatPhone(row.phone),
           call_href: telHref(row.phone),
           created_ms: created.getTime(),
-          created_at: formatDate(row.created_at),
+          created_at: formatAdminDateTimeMedium(row.created_at),
           distance_km: liveDistance,
           distance_label: formatDistance(liveDistance),
           follow_status: followStatus,
@@ -124,12 +122,12 @@ export default async function AdminLeadsPage({ searchParams }) {
           if (!hay.includes(q.toLowerCase())) return false;
         }
         if (from) {
-          const start = new Date(`${from}T00:00:00`);
-          if (!Number.isNaN(start.getTime()) && lead.created_ms < start.getTime()) return false;
+          const start = adminStartOfDay(from);
+          if (lead.created_ms < start.getTime()) return false;
         }
         if (to) {
-          const end = new Date(`${to}T23:59:59.999`);
-          if (!Number.isNaN(end.getTime()) && lead.created_ms > end.getTime()) return false;
+          const end = adminEndOfDay(to);
+          if (lead.created_ms > end.getTime()) return false;
         }
         if (distance === "none") {
           if (lead.distance_km != null) return false;

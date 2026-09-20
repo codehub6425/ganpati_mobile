@@ -1,6 +1,12 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
-import { LEDGER_CATEGORIES } from "@/lib/ledger";
+import { ADMIN_TIME_ZONE, formatAdminDateFromIso, formatAdminTime } from "@/lib/format";
+import {
+  categoryCollectionTotal,
+  entryRevenueAmount,
+  entryTxnAmount,
+  LEDGER_CATEGORIES,
+} from "@/lib/ledger";
 
 const COLUMN_TITLES = {
   recharge: "Recharge",
@@ -18,26 +24,33 @@ const TOTAL_KEYS = {
   payment: "total_payment",
 };
 
+const TOTAL_GROSS_KEYS = {
+  recharge: "total_recharge_gross",
+  money_transfer: "total_mt_gross",
+};
+
+function formatCategoryTotal(totals, cat) {
+  const grossKey = TOTAL_GROSS_KEYS[cat];
+  const profit = totals[TOTAL_KEYS[cat]] ?? 0;
+  const main = grossKey ? categoryCollectionTotal(totals, cat) : profit;
+  const gross = grossKey ? totals[grossKey] ?? 0 : 0;
+  if (grossKey && (gross > 0 || profit > 0)) {
+    return `Rs ${formatMoney(main)}\nTxn Rs ${formatMoney(gross)} · Profit Rs ${formatMoney(profit)}`;
+  }
+  return `Rs ${formatMoney(main)}`;
+}
+
 function formatMoney(n) {
   return new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(Number(n) || 0);
 }
 
-function formatTime(value) {
-  if (!value) return "";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
-}
-
 function formatHeaderDate(from, to, isRange) {
   const fmt = (iso) =>
-    iso ?
-      new Date(`${iso}T12:00:00`).toLocaleDateString("en-IN", {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-      })
-    : "";
+    formatAdminDateFromIso(iso, {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
   if (!isRange || from === to) return fmt(from);
   return `${fmt(from)} – ${fmt(to)}`;
 }
@@ -47,11 +60,16 @@ function cellText(entry, isRangeView, entryItemLabel, entryNote) {
   const main = entryItemLabel(entry);
   const note = entryNote(entry);
   const detail = note && note !== "—" && !main.includes(note) ? `${main} (${note})` : main;
+  const gross = entryTxnAmount(entry);
+  const profit = entryRevenueAmount(entry);
   const prefix =
     entry.category === "payment" && entry.payment_flow === "taken" ? "+Rs " : "Rs ";
-  const lines = [`${prefix}${formatMoney(entry.amount)}`, detail];
+  const lines = [`${prefix}${formatMoney(gross)}`, detail];
+  if (profit > 0 && entry.category !== "payment") {
+    lines.push(`Profit Rs ${formatMoney(profit)}`);
+  }
   if (isRangeView && entry.book_date) lines.push(String(entry.book_date));
-  const time = formatTime(entry.created_at);
+  const time = formatAdminTime(entry.created_at);
   if (time) lines.push(time);
   return lines.join("\n");
 }
@@ -76,7 +94,7 @@ export function downloadDayBookPdf({
     align: "right",
   });
   doc.text(
-    `Exported: ${new Date().toLocaleString("en-IN")}`,
+    `Exported: ${new Date().toLocaleString("en-IN", { timeZone: ADMIN_TIME_ZONE })}`,
     pageWidth - 14,
     20,
     { align: "right" }
@@ -96,13 +114,13 @@ export function downloadDayBookPdf({
       head: [
         [
           ...LEDGER_CATEGORIES.map((cat) => COLUMN_TITLES[cat]),
-          "Net",
+          "Collection",
         ],
       ],
       body: [
         [
-          ...LEDGER_CATEGORIES.map((cat) => `Rs ${formatMoney(totals[TOTAL_KEYS[cat]] ?? 0)}`),
-          `Rs ${formatMoney(totals.net_day ?? 0)}`,
+          ...LEDGER_CATEGORIES.map((cat) => formatCategoryTotal(totals, cat)),
+          `Rs ${formatMoney(totals.total_collection ?? 0)}\nProfit Rs ${formatMoney(totals.net_day ?? 0)}`,
         ],
       ],
       styles: { fontSize: 9, cellPadding: 2 },
@@ -121,7 +139,7 @@ export function downloadDayBookPdf({
 
   const foot = totals ?
     [
-      LEDGER_CATEGORIES.map((cat) => `Rs ${formatMoney(totals[TOTAL_KEYS[cat]] ?? 0)}`),
+      LEDGER_CATEGORIES.map((cat) => formatCategoryTotal(totals, cat)),
     ]
   : undefined;
 
@@ -140,7 +158,7 @@ export function downloadDayBookPdf({
     const y = (doc.lastAutoTable?.finalY || startY) + 8;
     doc.setFontSize(9);
     doc.text(
-      `Inflow: Rs ${formatMoney(totals.net_inflow ?? 0)}  |  Payment out: Rs ${formatMoney(totals.total_payment ?? 0)}  |  Payment in: Rs ${formatMoney(totals.total_payment_taken ?? 0)}  |  Net: Rs ${formatMoney(totals.net_day ?? 0)}  |  ${entries.length} transaction(s)`,
+      `Revenue inflow: Rs ${formatMoney(totals.net_inflow ?? 0)}  |  Payment out: Rs ${formatMoney(totals.total_payment ?? 0)}  |  Payment in: Rs ${formatMoney(totals.total_payment_taken ?? 0)}  |  Net profit: Rs ${formatMoney(totals.net_day ?? 0)}  |  ${entries.length} transaction(s)`,
       14,
       y
     );

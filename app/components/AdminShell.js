@@ -13,7 +13,7 @@ const NAV = [
   { href: "/admin/profile", label: "Profile", icon: "profile" },
   { href: "/admin/staff", label: "Staff", icon: "staff", adminOnly: true },
   { href: "/admin/jobs", label: "Jobs", icon: "jobs", soon: true },
-  { href: "/admin/settings", label: "Settings", icon: "settings", soon: true },
+  { href: "/admin/settings", label: "Settings", icon: "settings", adminOnly: true },
 ];
 
 const TABS = [
@@ -51,7 +51,9 @@ export default function AdminShell({ children, user = null }) {
           ? "Customers"
           : pathname.startsWith("/admin/staff")
             ? "Staff"
-            : "Home";
+            : pathname.startsWith("/admin/settings")
+              ? "Settings"
+              : "Home";
 
   return (
     <div className="admin-app">

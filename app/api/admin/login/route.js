@@ -6,10 +6,10 @@ import { userMustChangePassword } from "@/lib/staff";
 export async function POST(request) {
   try {
     const body = await request.json().catch(() => ({}));
-    const email = String(body.email || "");
+    const login = String(body.login || body.email || "");
     const password = String(body.password || "");
 
-    const user = await loginWithPassword(email, password);
+    const user = await loginWithPassword(login, password);
     if (user?.suspended) {
       return NextResponse.json(
         { ok: false, message: "This account is suspended. Contact your admin." },
@@ -18,7 +18,7 @@ export async function POST(request) {
     }
     if (!user || !user.id) {
       return NextResponse.json(
-        { ok: false, message: "Invalid email or password." },
+        { ok: false, message: "Invalid email, mobile, or password." },
         { status: 401 }
       );
     }

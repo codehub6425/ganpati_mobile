@@ -4,6 +4,8 @@ import { getSessionUser } from "@/lib/auth";
 
 import { ensureLeadsTable, getPool } from "@/lib/db";
 
+import { loadCommissionRules } from "@/lib/commission";
+
 import {
 
   canEditDayBook,
@@ -62,19 +64,16 @@ async function loadEntriesForBook(db, dayBookId) {
 
   const [rows] = await db.query(
 
-    `SELECT e.*, b.book_date, l.name AS lead_name, l.phone AS lead_phone, u.name AS created_by_name
-
+    `SELECT e.*, b.book_date, l.name AS lead_name, l.phone AS lead_phone, u.name AS created_by_name,
+            cust.name AS customer_name
      FROM ledger_entries e
-
      JOIN day_books b ON b.id = e.day_book_id
-
      LEFT JOIN leads l ON l.id = e.lead_id
-
      LEFT JOIN users u ON u.id = e.created_by
-
+     LEFT JOIN users cust ON cust.phone = e.customer_phone
+       AND cust.role_id = (SELECT id FROM roles WHERE slug = 'customer' LIMIT 1)
      WHERE e.day_book_id = ?
-
-     ORDER BY e.created_at ASC, e.id ASC`,
+     ORDER BY e.created_at DESC, e.id DESC`,
 
     [dayBookId]
 
@@ -90,19 +89,16 @@ async function loadEntriesForRange(db, fromDate, toDate) {
 
   const [rows] = await db.query(
 
-    `SELECT e.*, b.book_date, l.name AS lead_name, l.phone AS lead_phone, u.name AS created_by_name
-
+    `SELECT e.*, b.book_date, l.name AS lead_name, l.phone AS lead_phone, u.name AS created_by_name,
+            cust.name AS customer_name
      FROM ledger_entries e
-
      JOIN day_books b ON b.id = e.day_book_id
-
      LEFT JOIN leads l ON l.id = e.lead_id
-
      LEFT JOIN users u ON u.id = e.created_by
-
+     LEFT JOIN users cust ON cust.phone = e.customer_phone
+       AND cust.role_id = (SELECT id FROM roles WHERE slug = 'customer' LIMIT 1)
      WHERE b.book_date >= ? AND b.book_date <= ?
-
-     ORDER BY b.book_date ASC, e.created_at ASC, e.id ASC`,
+     ORDER BY b.book_date DESC, e.created_at DESC, e.id DESC`,
 
     [fromDate, toDate]
 
@@ -236,6 +232,8 @@ export async function GET(request) {
 
     const totals = computeTotals(entries);
 
+    const commission_rules = await loadCommissionRules(db);
+
 
 
     return NextResponse.json({
@@ -247,6 +245,8 @@ export async function GET(request) {
       entries,
 
       totals,
+
+      commission_rules,
 
     });
 

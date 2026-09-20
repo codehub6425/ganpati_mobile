@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { formatPhone, telHref } from "@/lib/format";
+import { ADMIN_TIME_ZONE, adminHourNow, formatPhone, telHref } from "@/lib/format";
 
 function CountUp({ value }) {
   const [shown, setShown] = useState(0);
@@ -33,7 +33,7 @@ function CountUp({ value }) {
 }
 
 function greeting() {
-  const hour = new Date().getHours();
+  const hour = adminHourNow();
   if (hour < 12) return "Good morning";
   if (hour < 17) return "Good afternoon";
   return "Good evening";
@@ -41,6 +41,7 @@ function greeting() {
 
 function todayLabel() {
   return new Date().toLocaleDateString("en-IN", {
+    timeZone: ADMIN_TIME_ZONE,
     weekday: "long",
     day: "numeric",
     month: "long",

@@ -2,11 +2,17 @@ import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { ensureLeadsTable, getPool } from "@/lib/db";
 import {
+  commissionEligible,
+  loadCommissionRules,
+  resolveCommissionForSave,
+} from "@/lib/commission";
+import {
   canEditDayBook,
   formatEntryRow,
   normalizeEntryInput,
 } from "@/lib/ledger";
 import { isStaffUser } from "@/lib/roles";
+import { ensureCustomerForLedger } from "@/lib/users";
 
 async function requireStaff() {
   const user = await getSessionUser();
@@ -70,11 +76,37 @@ export async function PATCH(request, { params }) {
     }
 
     const e = parsed.entry;
+
+    if (e.customer_phone) {
+      const customerName = String(body.customer_name ?? "").trim();
+      const ensured = await ensureCustomerForLedger(db, {
+        phone: e.customer_phone,
+        name: customerName,
+      });
+      if (ensured.error) {
+        return NextResponse.json({ ok: false, message: ensured.error }, { status: 400 });
+      }
+    }
+
+    const rules = await loadCommissionRules(db);
+    let commission_amount = null;
+    let commission_manual = 0;
+    if (commissionEligible(e.category, e.mt_subtype)) {
+      const resolved = resolveCommissionForSave(
+        rules,
+        e,
+        parsed.commission_amount_input,
+        parsed.commission_manual
+      );
+      commission_amount = resolved.commission_amount;
+      commission_manual = resolved.commission_manual ? 1 : 0;
+    }
+
     await db.execute(
       `UPDATE ledger_entries
        SET category = ?, amount = ?, transfer_amount = ?, mt_subtype = ?, provider = ?,
            description = ?, payment_method = ?, lead_id = ?, customer_phone = ?, device_brand = ?,
-           payment_flow = ?
+           payment_flow = ?, commission_amount = ?, commission_manual = ?
        WHERE id = ?`,
       [
         e.category,
@@ -88,6 +120,8 @@ export async function PATCH(request, { params }) {
         e.customer_phone,
         e.device_brand,
         e.payment_flow,
+        commission_amount,
+        commission_manual,
         entryId,
       ]
     );

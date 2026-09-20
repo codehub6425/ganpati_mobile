@@ -5,17 +5,8 @@ import StaffStatusActions from "@/app/components/StaffStatusActions";
 import UserForm from "@/app/components/UserForm";
 import { getSessionUser } from "@/lib/auth";
 import { dbErrorMessage, ensureLeadsTable, getPool } from "@/lib/db";
-import { titleCase } from "@/lib/format";
+import { formatAdminDateTimeMedium, titleCase } from "@/lib/format";
 import { canManageUsers } from "@/lib/roles";
-
-function formatDate(value) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value || "");
-  return date.toLocaleString("en-IN", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
-}
 
 export default async function AdminStaffPage({ searchParams }) {
   const params = await searchParams;
@@ -45,7 +36,7 @@ export default async function AdminStaffPage({ searchParams }) {
           ...row,
           name,
           initial: name.charAt(0) || "?",
-          created_at: formatDate(row.created_at),
+          created_at: formatAdminDateTimeMedium(row.created_at),
         };
       })
       .filter((person) => {
@@ -77,7 +68,7 @@ export default async function AdminStaffPage({ searchParams }) {
       {loadError ? <SwalMessage message={loadError} /> : null}
 
       {!loadError ? (
-        <PeopleSearch action="/admin/staff" query={q} placeholder="Search staff name or email" />
+        <PeopleSearch action="/admin/staff" query={q} placeholder="Search name, email, or mobile" />
       ) : null}
 
       {!loadError && staff.length === 0 ? (
@@ -95,14 +86,19 @@ export default async function AdminStaffPage({ searchParams }) {
                   <span className="admin-avatar">{person.initial}</span>
                   <div>
                     <h2>{person.name}</h2>
-                    <p className="admin-lead-meta">{person.email || "No email"}</p>
+                    <p className="admin-lead-meta">
+                      {person.phone || "No mobile"}
+                      {person.email ? ` · ${person.email}` : ""}
+                    </p>
                   </div>
                 </div>
                 <StaffStatusActions
                   userId={person.id}
                   name={person.name}
+                  phone={person.phone || ""}
+                  email={person.email || ""}
                   status={person.status || "active"}
-                  disabled={person.id === actor.id}
+                  blockSuspend={person.id === actor.id}
                 />
               </div>
               <p className="admin-lead-foot">

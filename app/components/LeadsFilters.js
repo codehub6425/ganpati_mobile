@@ -5,6 +5,8 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import DateRangeFilter from "./DateRangeFilter";
 
+const DEFAULT_STATUS = "new";
+
 const STATUSES = [
   { id: "all", label: "All" },
   { id: "new", label: "New" },
@@ -42,7 +44,12 @@ export default function LeadsFilters({ brands, problems, current, counts }) {
   function go(next) {
     const params = new URLSearchParams();
     Object.entries(next).forEach(([key, value]) => {
-      if (value && value !== "all") params.set(key, value);
+      if (!value) return;
+      if (key === "status") {
+        if (value !== DEFAULT_STATUS) params.set(key, value);
+        return;
+      }
+      if (value !== "all") params.set(key, value);
     });
     const query = params.toString();
     router.push(query ? `/admin/leads?${query}` : "/admin/leads");
@@ -111,7 +118,7 @@ export default function LeadsFilters({ brands, problems, current, counts }) {
   const extraCount = [current.brand, current.problem, current.distance, current.from, current.to].filter(Boolean)
     .length;
   const hasFilters = Boolean(
-    extraCount || current.q || (current.status && current.status !== "all")
+    extraCount || current.q || (current.status && current.status !== DEFAULT_STATUS)
   );
 
   const sheet =
