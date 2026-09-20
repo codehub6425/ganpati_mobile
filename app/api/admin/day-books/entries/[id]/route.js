@@ -11,6 +11,7 @@ import {
   formatEntryRow,
   normalizeEntryInput,
 } from "@/lib/ledger";
+import { adminBookDateIso } from "@/lib/format";
 import { isStaffUser } from "@/lib/roles";
 import { ensureCustomerForLedger } from "@/lib/users";
 
@@ -34,10 +35,7 @@ async function loadEntryWithBook(db, entryId) {
 }
 
 function bookDateStr(row) {
-  if (!row?.book_date) return null;
-  const d = row.book_date;
-  if (typeof d === "string") return d.slice(0, 10);
-  return d.toISOString?.().slice(0, 10) || String(d).slice(0, 10);
+  return adminBookDateIso(row?.book_date);
 }
 
 export async function PATCH(request, { params }) {
@@ -153,7 +151,11 @@ export async function DELETE(_request, { params }) {
 
     const date = bookDateStr(existing);
     if (!canEditDayBook(auth.user, date)) {
-      return NextResponse.json({ ok: false, message: "You cannot delete this entry." }, { status: 403 });
+      const message =
+        auth.user.role === "staff" ?
+          "Staff can only delete today's entries. This line is from another day — ask an admin."
+        : "You cannot delete this entry.";
+      return NextResponse.json({ ok: false, message }, { status: 403 });
     }
 
     await db.execute("DELETE FROM ledger_entries WHERE id = ?", [entryId]);

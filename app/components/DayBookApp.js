@@ -10,7 +10,6 @@ import {
   entryCollectionAmount,
   entryRevenueAmount,
   entryTxnAmount,
-  categoryCollectionTotal,
   LEDGER_CATEGORIES,
   MT_SUBTYPES,
   PAYMENT_FLOW_LABELS,
@@ -176,7 +175,6 @@ function entryProfitLine(entry) {
 
   if (commissionEligible(entry.category, entry.mt_subtype)) {
     const parts = [];
-    if (txn > 0) parts.push(`Txn ₹${formatMoney(txn)}`);
     if (hasProfit) parts.push(`Profit ₹${formatMoney(profit)}`);
     const transfer = entry.transfer_amount != null ? Number(entry.transfer_amount) : NaN;
     if (Number.isFinite(transfer) && transfer > 0 && transfer !== txn) {
@@ -939,6 +937,39 @@ export default function DayBookApp({ userRole = "staff" }) {
   }, [loadError]);
 
   useEffect(() => {
+    if (!addOpen) {
+      document.documentElement.style.removeProperty("--keyboard-inset");
+      return undefined;
+    }
+    const root = document.documentElement;
+    function syncKeyboardInset() {
+      const vv = window.visualViewport;
+      if (!vv) {
+        root.style.setProperty("--keyboard-inset", "0px");
+        return;
+      }
+      const inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      root.style.setProperty("--keyboard-inset", `${Math.round(inset)}px`);
+    }
+    syncKeyboardInset();
+    window.visualViewport?.addEventListener("resize", syncKeyboardInset);
+    window.visualViewport?.addEventListener("scroll", syncKeyboardInset);
+    return () => {
+      window.visualViewport?.removeEventListener("resize", syncKeyboardInset);
+      window.visualViewport?.removeEventListener("scroll", syncKeyboardInset);
+      root.style.removeProperty("--keyboard-inset");
+    };
+  }, [addOpen]);
+
+  function scrollFieldIntoView(event) {
+    const el = event.target;
+    if (!el?.matches?.("input, textarea, select")) return;
+    window.requestAnimationFrame(() => {
+      el.scrollIntoView({ block: "center", behavior: "smooth" });
+    });
+  }
+
+  useEffect(() => {
     if (!commissionEligible(category, form.mt_subtype)) return;
     if (form.commission_manual) return;
     const suggested = suggestCommission(commissionRules, {
@@ -948,7 +979,11 @@ export default function DayBookApp({ userRole = "staff" }) {
       mt_subtype: form.mt_subtype,
     });
     const next = suggested > 0 ? String(suggested) : "";
-    setForm((prev) => (prev.commission_amount === next ? prev : { ...prev, commission_amount: next }));
+    setForm((prev) =>
+      prev.commission_amount === next && !prev.commission_manual ?
+        prev
+      : { ...prev, commission_amount: next }
+    );
   }, [
     category,
     form.amount,
@@ -1347,6 +1382,13 @@ export default function DayBookApp({ userRole = "staff" }) {
           (row) => row.description && row.amount !== "" && Number(row.amount) >= 0
         ).length
       : 0;
+    const rechargeRule = commissionRules.find((r) => r.rule_key === "recharge");
+    const rechargeRateHint =
+      category === "recharge" && rechargeRule?.calc_type === "percent" && rechargeRule.rate != null ?
+        `${rechargeRule.rate}% of recharge amount (added as profit, not deducted)`
+      : category === "recharge" ?
+        "Profit on recharge amount (added, not deducted)"
+      : "";
 
     return (
       <>
@@ -1377,6 +1419,7 @@ export default function DayBookApp({ userRole = "staff" }) {
           id="ledger-add-entry-form"
           className={`ledger-quick-form is-modal${simple ? " is-simple is-sheet-layout" : ""}${repairQuickSheet ? " is-repair-quick" : ""}`}
           onSubmit={submitEntry}
+          onFocusCapture={scrollFieldIntoView}
           noValidate
         >
           <div className={`ledger-quick-form-scroll${repairQuickSheet ? " is-no-scroll" : ""}`}>
@@ -1435,7 +1478,12 @@ export default function DayBookApp({ userRole = "staff" }) {
                 onChange={(e) => {
                   if (blockMtAmountEntry()) return;
                   clearFormError("amount");
-                  setForm((p) => ({ ...p, amount: e.target.value }));
+                  setCommissionEditOpen(false);
+                  setForm((p) => ({
+                    ...p,
+                    amount: e.target.value,
+                    commission_manual: false,
+                  }));
                 }}
               />
               {formErrors.amount ?
@@ -1448,6 +1496,20 @@ export default function DayBookApp({ userRole = "staff" }) {
 
           {commissionEligible(category, form.mt_subtype) && mtTypeSelected && form.amount !== "" ? (
             <div className="ledger-commission-field">
+              {(() => {
+                const txn = Number(form.amount) || 0;
+                const profit = Number(form.commission_amount) || 0;
+                const showTotal = txn > 0 && profit > 0;
+                return showTotal ?
+                    <p className="ledger-commission-total-hint">
+                      Customer pays <strong>₹{formatMoney(txn)}</strong>
+                      <span className="ledger-commission-total-breakdown">
+                        {" "}
+                        · Your profit ₹{formatMoney(profit)} (from operator, not extra from customer)
+                      </span>
+                    </p>
+                  : null;
+              })()}
               {commissionEditOpen || form.commission_manual ? (
                 <>
                   <label className="ledger-quick-field">
@@ -1477,13 +1539,16 @@ export default function DayBookApp({ userRole = "staff" }) {
                   <p className="ledger-commission-summary-text">
                     {simple ?
                       <>
-                        Commission{" "}
+                        Profit{" "}
                         <strong>
                           ₹
                           {form.commission_amount !== "" ?
                             formatMoney(form.commission_amount)
                           : "0"}
                         </strong>
+                        {rechargeRateHint ?
+                          <span className="ledger-commission-rate-hint"> · {rechargeRateHint}</span>
+                        : null}
                       </>
                     : <>
                         System calculated commission for this entry:{" "}
@@ -1844,9 +1909,7 @@ export default function DayBookApp({ userRole = "staff" }) {
             const grossKey = TOTAL_GROSS_KEYS[cat];
             const grossVal = grossKey ? totals[grossKey] ?? 0 : profitVal;
             const showSplitGross = Boolean(grossKey);
-            const displayMain = showSplitGross ?
-              categoryCollectionTotal(totals, cat)
-            : profitVal;
+            const displayMain = showSplitGross ? grossVal : profitVal;
             const isMt = cat === "money_transfer";
             const isRecharge = cat === "recharge";
             const hasSummaryEye = isMt || isRecharge;
@@ -1892,9 +1955,9 @@ export default function DayBookApp({ userRole = "staff" }) {
                           ))}
                         </ul>
                         <div className="ledger-summary-popover-total">
-                          <span>Total handled</span>
+                          <span>From customers</span>
                           <strong>₹{formatMoney(mtBreakdown.totalGross)}</strong>
-                          <span>Total profit</span>
+                          <span>Your profit</span>
                           <strong>₹{formatMoney(mtBreakdown.totalCommission)}</strong>
                         </div>
                       </>
@@ -1923,9 +1986,9 @@ export default function DayBookApp({ userRole = "staff" }) {
                           ))}
                         </ul>
                         <div className="ledger-summary-popover-total">
-                          <span>Total handled</span>
+                          <span>From customers</span>
                           <strong>₹{formatMoney(rechargeBreakdown.totalGross)}</strong>
-                          <span>Total profit</span>
+                          <span>Your profit</span>
                           <strong>₹{formatMoney(rechargeBreakdown.totalCommission)}</strong>
                         </div>
                       </>
@@ -1951,9 +2014,6 @@ export default function DayBookApp({ userRole = "staff" }) {
                   ) : (
                     <>
                       <strong>₹{formatMoney(displayMain)}</strong>
-                      {showSplitGross && grossVal > 0 ?
-                        <p className="ledger-summary-sub is-muted">Transaction ₹{formatMoney(grossVal)}</p>
-                      : null}
                       {showSplitGross && profitVal > 0 ?
                         <p className="ledger-summary-sub is-profit">Profit ₹{formatMoney(profitVal)}</p>
                       : null}

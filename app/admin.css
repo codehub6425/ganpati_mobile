@@ -4245,6 +4245,10 @@
   overflow: hidden;
 }
 
+.ledger-add-modal.admin-modal .admin-modal-card {
+  overflow: hidden;
+}
+
 .ledger-add-modal .ledger-modal-body {
   flex: 1;
   min-height: 0;
@@ -4283,6 +4287,9 @@
 }
 
 .ledger-modal-foot.is-sticky {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
   padding-top: 10px;
   margin-top: 4px;
   border-top: 1px solid #eef1f6;
@@ -4708,6 +4715,45 @@
 
   .ledger-entry-card-foot {
     margin-top: 4px;
+  }
+
+  .ledger-add-modal.admin-modal {
+    align-items: flex-end;
+    padding-bottom: 0;
+  }
+
+  .ledger-add-modal .admin-modal-card {
+    width: 100%;
+    max-height: min(560px, calc(100dvh - var(--keyboard-inset, 0px) - 6px));
+    margin-bottom: var(--keyboard-inset, 0px);
+    transform: translateZ(0);
+    transition: margin-bottom 0.15s ease, max-height 0.15s ease;
+  }
+
+  .ledger-add-modal.is-quick-sheet .admin-modal-card {
+    max-height: min(520px, calc(100dvh - var(--keyboard-inset, 0px) - 6px));
+    padding-bottom: calc(10px + env(safe-area-inset-bottom));
+  }
+
+  .ledger-add-modal .ledger-modal-foot.is-sticky {
+    padding-bottom: max(6px, env(safe-area-inset-bottom));
+    box-shadow: 0 -10px 20px rgba(255, 255, 255, 0.98);
+  }
+
+  .ledger-add-modal.is-quick-sheet .ledger-quick-form-scroll {
+    max-height: min(42dvh, calc(100dvh - var(--keyboard-inset, 0px) - 220px));
+    padding-bottom: 12px;
+    scroll-padding-bottom: 72px;
+  }
+
+  .ledger-add-modal.is-quick-sheet .ledger-more-options {
+    padding: 4px 0 0;
+    line-height: 1.25;
+  }
+
+  .ledger-add-modal.is-quick-sheet .ledger-quick-submit {
+    min-height: 48px;
+    font-size: 16px;
   }
 
   .ledger-entry-card-foot .ledger-entry-card-meta {
@@ -5183,6 +5229,24 @@
   display: grid;
   gap: 6px;
   margin-bottom: 4px;
+}
+
+.ledger-commission-total-hint {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: #111318;
+  line-height: 1.4;
+}
+
+.ledger-commission-total-breakdown {
+  font-weight: 600;
+  color: #5b6170;
+}
+
+.ledger-commission-rate-hint {
+  font-weight: 600;
+  color: #15803d;
 }
 
 .ledger-commission-summary {

@@ -2,7 +2,6 @@
 
 import { ADMIN_TIME_ZONE, formatAdminDateFromIso, formatAdminTime } from "@/lib/format";
 import {
-  categoryCollectionTotal,
   entryRevenueAmount,
   entryTxnAmount,
   LEDGER_CATEGORIES,
@@ -32,16 +31,14 @@ const TOTAL_GROSS_KEYS = {
 function categoryTotalCell(totals, cat) {
   const grossKey = TOTAL_GROSS_KEYS[cat];
   const profit = totals[TOTAL_KEYS[cat]] ?? 0;
-  const main = grossKey ? categoryCollectionTotal(totals, cat) : profit;
   const gross = grossKey ? totals[grossKey] ?? 0 : 0;
+  const main = grossKey ? gross : profit;
   if (grossKey && (gross > 0 || profit > 0)) {
     return (
       <>
         ₹{formatMoney(main)}
         <br />
-        <small>
-          Txn ₹{formatMoney(gross)} · Profit ₹{formatMoney(profit)}
-        </small>
+        <small>Profit ₹{formatMoney(profit)}</small>
       </>
     );
   }

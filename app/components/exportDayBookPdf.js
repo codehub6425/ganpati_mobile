@@ -2,7 +2,6 @@ import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { ADMIN_TIME_ZONE, formatAdminDateFromIso, formatAdminTime } from "@/lib/format";
 import {
-  categoryCollectionTotal,
   entryRevenueAmount,
   entryTxnAmount,
   LEDGER_CATEGORIES,
@@ -32,10 +31,10 @@ const TOTAL_GROSS_KEYS = {
 function formatCategoryTotal(totals, cat) {
   const grossKey = TOTAL_GROSS_KEYS[cat];
   const profit = totals[TOTAL_KEYS[cat]] ?? 0;
-  const main = grossKey ? categoryCollectionTotal(totals, cat) : profit;
   const gross = grossKey ? totals[grossKey] ?? 0 : 0;
+  const main = grossKey ? gross : profit;
   if (grossKey && (gross > 0 || profit > 0)) {
-    return `Rs ${formatMoney(main)}\nTxn Rs ${formatMoney(gross)} · Profit Rs ${formatMoney(profit)}`;
+    return `Rs ${formatMoney(main)}\nProfit Rs ${formatMoney(profit)}`;
   }
   return `Rs ${formatMoney(main)}`;
 }
