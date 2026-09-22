@@ -1,15 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { apiUrl } from "@/lib/basePath";
 import { commissionEligible, suggestCommission } from "@/lib/commission";
-import { formatAdminTime } from "@/lib/format";
+import { adminShiftIsoDays, formatAdminDateFromIso, formatAdminTime } from "@/lib/format";
 import {
   CATEGORY_LABELS,
   DEFAULT_PAYMENT_TAKEN_ITEMS,
   entryCollectionAmount,
+  entryMtCollectionGross,
   entryRevenueAmount,
   entryTxnAmount,
+  isApsEntry,
   LEDGER_CATEGORIES,
   MT_SUBTYPES,
   PAYMENT_FLOW_LABELS,
@@ -161,6 +163,10 @@ function entryBadgeClass(entry) {
 }
 
 function entryAmountDisplay(entry) {
+  if (isApsEntry(entry)) {
+    const txn = entryTxnAmount(entry);
+    return txn > 0 ? `−₹${formatMoney(txn)}` : "₹0";
+  }
   const gross = entryCollectionAmount(entry);
   const formatted = formatMoney(gross);
   return isPaymentTaken(entry) ? `+₹${formatted}` : `₹${formatted}`;
@@ -176,6 +182,9 @@ function entryProfitLine(entry) {
   if (commissionEligible(entry.category, entry.mt_subtype)) {
     const parts = [];
     if (hasProfit) parts.push(`Profit ₹${formatMoney(profit)}`);
+    if (isApsEntry(entry) && txn > 0) {
+      parts.push(`Debit ₹${formatMoney(txn)} from total collection`);
+    }
     const transfer = entry.transfer_amount != null ? Number(entry.transfer_amount) : NaN;
     if (Number.isFinite(transfer) && transfer > 0 && transfer !== txn) {
       parts.push(`Transfer ₹${formatMoney(transfer)}`);
@@ -202,7 +211,7 @@ function computeMtBreakdown(entries) {
     const raw = String(entry.mt_subtype || "mt").trim().toLowerCase();
     const bucket = subs.includes(raw) ? bySub[raw] : other;
     bucket.count += 1;
-    bucket.gross += Number(entry.amount) || 0;
+    bucket.gross += entryMtCollectionGross(entry);
     bucket.commission += entryRevenueAmount(entry);
   }
 
@@ -750,6 +759,17 @@ function LedgerCustomerLinkPanel({
   );
 }
 
+function FilterIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M10 18h4v-2h-4v2ZM3 6v2h18V6H3Zm3 7h12v-2H6v2Z"
+      />
+    </svg>
+  );
+}
+
 function DownloadIcon() {
   return (
     <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
@@ -799,6 +819,73 @@ function LedgerExportButton({ onClick }) {
       <DownloadIcon />
       <span className="ledger-export-btn-label">Export PDF</span>
     </button>
+  );
+}
+
+const LEDGER_DAY_STRIP_LENGTH = 30;
+
+function buildLastNDays(count = LEDGER_DAY_STRIP_LENGTH) {
+  const today = todayDateString();
+  const oldestOffset = -(count - 1);
+  return Array.from({ length: count }, (_, i) => adminShiftIsoDays(today, oldestOffset + i));
+}
+
+function scrollDayStripToSelection(container, activeEl, alignEnd) {
+  if (!container) return;
+  const maxScroll = Math.max(0, container.scrollWidth - container.clientWidth);
+  if (!activeEl) {
+    container.scrollLeft = maxScroll;
+    return;
+  }
+  let next = 0;
+  if (alignEnd) {
+    next = activeEl.offsetLeft + activeEl.offsetWidth - container.clientWidth + 8;
+  } else {
+    next = activeEl.offsetLeft - (container.clientWidth - activeEl.offsetWidth) / 2;
+  }
+  container.scrollLeft = Math.min(maxScroll, Math.max(0, next));
+}
+
+function LedgerDayStrip({ selectedFrom, selectedTo, onSelectDay, panelOpen = false }) {
+  const days = useMemo(() => buildLastNDays(), []);
+  const stripElRef = useRef(null);
+  const singleDay = selectedFrom === selectedTo ? selectedFrom : null;
+
+  useLayoutEffect(() => {
+    if (!panelOpen) return;
+    const node = stripElRef.current;
+    if (!node) return;
+    const syncScroll = () => {
+      const active = node.querySelector(".ledger-day-pill.is-active");
+      scrollDayStripToSelection(node, active, singleDay === todayDateString());
+    };
+    syncScroll();
+    requestAnimationFrame(syncScroll);
+  }, [panelOpen, selectedFrom, selectedTo, singleDay]);
+
+  return (
+    <div className="ledger-day-strip-wrap">
+      <div className="ledger-day-strip" ref={stripElRef} role="listbox" aria-label="Last 30 days, oldest to newest">
+        {days.map((iso) => {
+          const isToday = iso === todayDateString();
+          const isActive = iso === singleDay;
+          const label = formatAdminDateFromIso(iso, { day: "numeric", month: "short" });
+          return (
+            <button
+              key={iso}
+              type="button"
+              role="option"
+              aria-selected={isActive}
+              aria-label={isToday ? `Today, ${label}` : label}
+              className={`ledger-day-pill${isActive ? " is-active" : ""}${isToday ? " is-today" : ""}`}
+              onClick={() => onSelectDay(iso)}
+            >
+              <span className="ledger-day-pill-label">{label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -854,12 +941,17 @@ export default function DayBookApp({ userRole = "staff" }) {
   const [commissionRules, setCommissionRules] = useState([]);
   const [mtSummaryOpen, setMtSummaryOpen] = useState(false);
   const [rechargeSummaryOpen, setRechargeSummaryOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [rangePickerOpen, setRangePickerOpen] = useState(false);
 
   const canEdit = book?.can_edit ?? false;
   const mtBreakdown = useMemo(() => computeMtBreakdown(entries), [entries]);
   const rechargeBreakdown = useMemo(() => computeRechargeBreakdown(entries), [entries]);
   const isRangeView = Boolean(book?.is_range) || dateFrom !== dateTo;
-  const entryDate = dateFrom === dateTo ? dateFrom : dateTo;
+  const isSingleDay = dateFrom === dateTo;
+  const selectedDayIso = !isRangeView && isSingleDay ? dateFrom : null;
+  const canAddEntry = Boolean(selectedDayIso && canEdit);
+  const isViewingToday = selectedDayIso === todayDateString();
 
   const loadSuggestions = useCallback(async () => {
     try {
@@ -876,13 +968,10 @@ export default function DayBookApp({ userRole = "staff" }) {
     }
   }, []);
 
-  const load = useCallback(async () => {
+  const loadRange = useCallback(async (from, to) => {
     setLoadError("");
     try {
-      const qs = new URLSearchParams({
-        from: dateFrom,
-        to: dateTo,
-      });
+      const qs = new URLSearchParams({ from, to });
       const res = await fetch(apiUrl(`/api/admin/day-books?${qs.toString()}`), {
         credentials: "include",
       });
@@ -901,7 +990,11 @@ export default function DayBookApp({ userRole = "staff" }) {
     } catch {
       setLoadError("Network error.");
     }
-  }, [dateFrom, dateTo]);
+  }, []);
+
+  const load = useCallback(async () => {
+    await loadRange(dateFrom, dateTo);
+  }, [dateFrom, dateTo, loadRange]);
 
   useEffect(() => {
     load();
@@ -1026,7 +1119,33 @@ export default function DayBookApp({ userRole = "staff" }) {
     setEntrySortDir(sortKey === "created_at" || sortKey === "amount" ? "desc" : "asc");
   }
 
-  const filtersActive = Boolean(search.trim() || filterCategory);
+  const todayIso = todayDateString();
+  const dateFilterActive = dateFrom !== dateTo || dateFrom !== todayIso;
+  const filtersActive = Boolean(search.trim() || filterCategory || dateFilterActive);
+  const entriesSectionTitle =
+    isRangeView ?
+      `Entries · ${formatAdminDateFromIso(dateFrom, { day: "numeric", month: "short" })} – ${formatAdminDateFromIso(dateTo, { day: "numeric", month: "short", year: "numeric" })}`
+    : isSingleDay && dateFrom === todayDateString() ?
+      "Today's entries"
+    : isSingleDay ?
+      `Entries · ${formatAdminDateFromIso(dateFrom, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}`
+    : "Entries";
+
+  function selectLedgerDay(iso) {
+    setDateFrom(iso);
+    setDateTo(iso);
+    setRangePickerOpen(false);
+  }
+
+  function openFiltersPanel() {
+    setRangePickerOpen(dateFrom !== dateTo);
+    setFiltersOpen(true);
+  }
+
+  function closeFiltersPanel() {
+    setFiltersOpen(false);
+    setRangePickerOpen(false);
+  }
 
   function resetCustomerLink() {
     setCustomerLinkMode("none");
@@ -1177,6 +1296,10 @@ export default function DayBookApp({ userRole = "staff" }) {
   function clearFilters() {
     setSearch("");
     setFilterCategory("");
+    const today = todayDateString();
+    setDateFrom(today);
+    setDateTo(today);
+    setRangePickerOpen(false);
   }
 
   function validateEntryForm() {
@@ -1249,10 +1372,39 @@ export default function DayBookApp({ userRole = "staff" }) {
     return Object.keys(errors).length === 0;
   }
 
+  async function confirmEntryBookDate() {
+    if (!selectedDayIso || isViewingToday) return true;
+    const dateLabel = formatAdminDateFromIso(selectedDayIso, {
+      weekday: "long",
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+    return confirmAction({
+      title: "Add to selected date?",
+      text: `This entry will be saved on ${dateLabel}, not today (${formatAdminDateFromIso(todayDateString(), { day: "numeric", month: "short" })}). Do you want to continue?`,
+      confirmText: "Yes, add entry",
+      cancelText: "Cancel",
+      icon: "question",
+    });
+  }
+
   async function submitEntry(event) {
     event.preventDefault();
-    if (!canEdit) return;
+    if (!canAddEntry || !selectedDayIso) return;
     if (!validateEntryForm()) return;
+
+    const saveDate = selectedDayIso;
+    if (!isViewingToday) {
+      setAddOpen(false);
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      const dateOk = await confirmEntryBookDate();
+      if (!dateOk) {
+        setAddOpen(true);
+        return;
+      }
+    }
+
     setBusy(true);
     try {
       const customerPhone =
@@ -1281,7 +1433,7 @@ export default function DayBookApp({ userRole = "staff" }) {
         );
         for (const line of lines) {
           const { res, data } = await postEntry({
-            date: entryDate,
+            date: saveDate,
             category: "accessory",
             amount: line.amount,
             description: line.description,
@@ -1296,7 +1448,7 @@ export default function DayBookApp({ userRole = "staff" }) {
         }
       } else {
         const { res, data } = await postEntry({
-          date: entryDate,
+          date: saveDate,
           category,
           amount: form.amount,
           transfer_amount: category === "money_transfer" ? form.transfer_amount : undefined,
@@ -1327,7 +1479,9 @@ export default function DayBookApp({ userRole = "staff" }) {
       }
       resetForm(true);
       setAddOpen(false);
-      await load();
+      setDateFrom(saveDate);
+      setDateTo(saveDate);
+      await loadRange(saveDate, saveDate);
       await loadSuggestions();
     } catch {
       showError("Network error.");
@@ -1500,7 +1654,20 @@ export default function DayBookApp({ userRole = "staff" }) {
                 const txn = Number(form.amount) || 0;
                 const profit = Number(form.commission_amount) || 0;
                 const showTotal = txn > 0 && profit > 0;
-                return showTotal ?
+                if (!showTotal) return null;
+                if (category === "money_transfer" && form.mt_subtype === "aps") {
+                  return (
+                    <p className="ledger-commission-total-hint">
+                      APS <strong>₹{formatMoney(txn)}</strong>
+                      <span className="ledger-commission-total-breakdown">
+                        {" "}
+                        · Debited from total collection · Profit ₹{formatMoney(profit)} added to day profit
+                      </span>
+                    </p>
+                  );
+                }
+                if (category === "recharge") {
+                  return (
                     <p className="ledger-commission-total-hint">
                       Customer pays <strong>₹{formatMoney(txn)}</strong>
                       <span className="ledger-commission-total-breakdown">
@@ -1508,7 +1675,9 @@ export default function DayBookApp({ userRole = "staff" }) {
                         · Your profit ₹{formatMoney(profit)} (from operator, not extra from customer)
                       </span>
                     </p>
-                  : null;
+                  );
+                }
+                return null;
               })()}
               {commissionEditOpen || form.commission_manual ? (
                 <>
@@ -1884,11 +2053,11 @@ export default function DayBookApp({ userRole = "staff" }) {
         <div className="ledger-top-actions ledger-toolbar-desktop">
           <LedgerDateRangeControl {...dateRangeProps} />
           <LedgerExportButton onClick={exportDayBookPdf} />
-          {canEdit ? (
+          {canAddEntry ?
             <button type="button" className="admin-btn ledger-top-add" onClick={() => openAddModal()}>
               + Add entry
             </button>
-          ) : null}
+          : null}
         </div>
       </header>
 
@@ -1897,9 +2066,23 @@ export default function DayBookApp({ userRole = "staff" }) {
           Showing combined totals for the selected range. Pick a single day in the date range to add or edit entries.
         </p>
       ) : null}
-      {!canEdit && book && !isRangeView ? (
+      {!canEdit && book && !isRangeView ?
         <p className="ledger-hint">View only — staff can edit today&apos;s accounts only.</p>
-      ) : null}
+      : null}
+      {canAddEntry && !isViewingToday ?
+        <p className="ledger-hint ledger-hint-selected-day">
+          Entries you add will be saved on{" "}
+          <strong>
+            {formatAdminDateFromIso(selectedDayIso, {
+              weekday: "short",
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+            })}
+          </strong>
+          , not today.
+        </p>
+      : null}
 
       {totals ? (
         <section className="ledger-summary-grid" aria-label="Today's totals">
@@ -1922,7 +2105,7 @@ export default function DayBookApp({ userRole = "staff" }) {
                 className={`ledger-summary-card is-${meta.tone}${summaryOpen ? " is-detail-open" : ""}`}
                 {...(hasSummaryEye ? { "data-summary-detail-root": true } : {})}
               >
-                {canEdit ? (
+                {canAddEntry ?
                   <button
                     type="button"
                     className="ledger-summary-add"
@@ -1932,7 +2115,7 @@ export default function DayBookApp({ userRole = "staff" }) {
                   >
                     +
                   </button>
-                ) : null}
+                : null}
                 {isMt && mtSummaryOpen ? (
                   <div className="ledger-summary-popover" role="region" aria-label="M/T summary details">
                     <p className="ledger-summary-popover-title">M/T summary</p>
@@ -1947,7 +2130,10 @@ export default function DayBookApp({ userRole = "staff" }) {
                               <span className="ledger-summary-popover-meta">
                                 {row.count} txn{row.count === 1 ? "" : "s"}
                               </span>
-                              <span className="ledger-summary-popover-gross">Txn ₹{formatMoney(row.gross)}</span>
+                              <span className="ledger-summary-popover-gross">
+                                {row.sub === "aps" ? "Debit" : "Txn"} ₹{formatMoney(Math.abs(row.gross))}
+                                {row.gross < 0 ? " (−)" : ""}
+                              </span>
                               <span className="ledger-summary-popover-comm">
                                 Profit ₹{formatMoney(row.commission)}
                               </span>
@@ -2060,16 +2246,31 @@ export default function DayBookApp({ userRole = "staff" }) {
               <LedgerCategoryIcon kind="net" />
             </span>
             <div className="ledger-summary-net-body">
-              <p>{isRangeView ? "Total collection (range)" : "Total collection today"}</p>
-              <div className="ledger-summary-net-row">
-                <strong>₹{formatMoney(totals.total_collection ?? 0)}</strong>
-                <span className="ledger-summary-net-count">
-                  {entries.length} transaction{entries.length === 1 ? "" : "s"}
-                </span>
+              <div className="ledger-summary-net-main">
+                <div className="ledger-summary-net-left">
+                  <p className="ledger-summary-net-title">
+                    {isRangeView ?
+                      "Total collection (range)"
+                    : isViewingToday ?
+                      "Total collection today"
+                    : `Total collection · ${formatAdminDateFromIso(selectedDayIso, { day: "numeric", month: "short" })}`}
+                  </p>
+                  <div className="ledger-summary-net-row">
+                    <strong className="ledger-summary-net-total">
+                      ₹{formatMoney(totals.total_collection ?? 0)}
+                    </strong>
+                    <span className="ledger-summary-net-count">
+                      {entries.length} transaction{entries.length === 1 ? "" : "s"}
+                    </span>
+                  </div>
+                </div>
+                <div className="ledger-summary-net-profit">
+                  <span className="ledger-summary-net-profit-label">Profit</span>
+                  <strong className="ledger-summary-net-profit-value">
+                    ₹{formatMoney(totals.net_day ?? 0)}
+                  </strong>
+                </div>
               </div>
-              <p className="ledger-summary-sub is-profit">
-                Profit ₹{formatMoney(totals.net_day ?? 0)}
-              </p>
             </div>
           </article>
         </section>
@@ -2078,66 +2279,162 @@ export default function DayBookApp({ userRole = "staff" }) {
       <section className="admin-card ledger-entries" id="ledger-entries">
         <div className="ledger-entries-head">
           <div>
-            <h2 className="ledger-section-title">
-              {isRangeView ? "Entries in range" : "Today's entries"}
-            </h2>
+            <h2 className="ledger-section-title">{entriesSectionTitle}</h2>
             <p className="ledger-entries-count">
               Showing {filteredEntries.length} of {entries.length}
+              {filtersActive ? " · filters on" : ""}
             </p>
           </div>
+          <div className="ledger-entries-head-actions">
+            <button
+              type="button"
+              className={`ledger-filter-toggle${filtersOpen ? " is-open" : ""}${filtersActive ? " has-active" : ""}`}
+              aria-expanded={filtersOpen}
+              aria-label={filtersOpen ? "Hide filters" : "Show filters"}
+              title={filtersOpen ? "Hide filters" : "Filters"}
+              onClick={() => (filtersOpen ? closeFiltersPanel() : openFiltersPanel())}
+            >
+              <FilterIcon />
+              {filtersActive && !filtersOpen ?
+                <span className="ledger-filter-toggle-dot" aria-hidden="true" />
+              : null}
+            </button>
+            <span className="ledger-entries-head-export">
+              <LedgerExportButton onClick={exportDayBookPdf} />
+            </span>
+          </div>
         </div>
 
-        <div className="ledger-filter-panel">
-          <div className="ledger-filter-range-row ledger-toolbar-mobile">
-            <div className="ledger-filter-range-field">
-              <LedgerDateRangeControl {...dateRangeProps} />
-            </div>
-            <LedgerExportButton onClick={exportDayBookPdf} />
-          </div>
-          <label className="ledger-filter-search">
-            <span>Search</span>
-            <input
-              type="search"
-              className="ledger-search"
-              placeholder="Provider, item, staff, note…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </label>
-          <div className="ledger-filter-types">
-            <span className="ledger-filter-types-label">Type</span>
-            <div className="ledger-filter-chips" role="group" aria-label="Filter by type">
+        {filtersOpen ?
+          <div className="ledger-filter-panel" id="ledger-filter-panel">
+            <div className="ledger-filter-panel-head">
+              <span className="ledger-filter-panel-title">Filters</span>
               <button
                 type="button"
-                className={`ledger-filter-chip${filterCategory === "" ? " is-active" : ""}`}
-                onClick={() => setFilterCategory("")}
+                className="ledger-filter-panel-close"
+                aria-label="Close filters"
+                onClick={closeFiltersPanel}
               >
-                All
+                ×
               </button>
-              {LEDGER_CATEGORIES.map((cat) => (
-                <button
-                  key={cat}
-                  type="button"
-                  className={`ledger-filter-chip${filterCategory === cat ? " is-active" : ""}`}
-                  onClick={() => setFilterCategory(filterCategory === cat ? "" : cat)}
-                >
-                  {SUMMARY_META[cat]?.label || CATEGORY_LABELS[cat]}
-                </button>
-              ))}
             </div>
-          </div>
-          {filtersActive ? (
-            <button type="button" className="ledger-filter-clear" onClick={clearFilters}>
-              Clear filters
-            </button>
-          ) : null}
-        </div>
 
-        {filteredEntries.length === 0 ? (
-          <p className="admin-empty">
-            {entries.length === 0 ? "No entries yet." : "No entries match your filters."}
-          </p>
-        ) : (
+            <div className="ledger-filter-block ledger-filter-dates">
+              <span className="ledger-filter-types-label">Date</span>
+              <LedgerDayStrip
+                panelOpen={filtersOpen}
+                selectedFrom={dateFrom}
+                selectedTo={dateTo}
+                onSelectDay={selectLedgerDay}
+              />
+              {isAdmin && dateFrom !== dateTo ?
+                <p className="ledger-filter-range-hint">
+                  Range:{" "}
+                  {formatAdminDateFromIso(dateFrom, { day: "numeric", month: "short" })}
+                  {" – "}
+                  {formatAdminDateFromIso(dateTo, { day: "numeric", month: "short", year: "numeric" })}
+                </p>
+              : null}
+              {isAdmin ?
+                <div className="ledger-filter-range-extra">
+                  {rangePickerOpen ?
+                    <div className="ledger-filter-range-field ledger-filter-range-admin">
+                      <LedgerDateRangeControl {...dateRangeProps} />
+                      <button
+                        type="button"
+                        className="ledger-filter-range-back"
+                        onClick={() => setRangePickerOpen(false)}
+                      >
+                        Use day picker above
+                      </button>
+                    </div>
+                  : (
+                    <button
+                      type="button"
+                      className="ledger-filter-range-link"
+                      onClick={() => setRangePickerOpen(true)}
+                    >
+                      Custom date range…
+                    </button>
+                  )}
+                </div>
+              : null}
+            </div>
+
+            <div className="ledger-filter-block">
+              <label className="ledger-filter-search">
+                <span>Search</span>
+                <input
+                  type="search"
+                  className="ledger-search"
+                  placeholder="Provider, item, staff, note…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </label>
+            </div>
+
+            <div className="ledger-filter-block ledger-filter-types">
+              <span className="ledger-filter-types-label">Type</span>
+              <div className="ledger-filter-chips" role="group" aria-label="Filter by type">
+                <button
+                  type="button"
+                  className={`ledger-filter-chip${filterCategory === "" ? " is-active" : ""}`}
+                  onClick={() => setFilterCategory("")}
+                >
+                  All
+                </button>
+                {LEDGER_CATEGORIES.map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    className={`ledger-filter-chip${filterCategory === cat ? " is-active" : ""}`}
+                    onClick={() => setFilterCategory(filterCategory === cat ? "" : cat)}
+                  >
+                    {SUMMARY_META[cat]?.label || CATEGORY_LABELS[cat]}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {filtersActive ?
+              <div className="ledger-filter-panel-foot">
+                <button type="button" className="ledger-filter-clear" onClick={clearFilters}>
+                  Clear all filters
+                </button>
+              </div>
+            : null}
+          </div>
+        : null}
+
+        {filteredEntries.length === 0 ?
+          <div className="ledger-empty-state">
+            <p className="ledger-empty-title">
+              {entries.length === 0 ?
+                isRangeView ?
+                  "No entries in this range"
+                : "No entries for this day"
+              : "No entries match your filters"}
+            </p>
+            <p className="ledger-empty-hint">
+              {entries.length === 0 && !isRangeView && canAddEntry ?
+                "Use + to add recharge, M/T, accessories, repair, or payment."
+              : entries.length === 0 ?
+                "Open filters to pick another date."
+              : "Change search or type filters."}
+            </p>
+            {entries.length === 0 && !isRangeView && canAddEntry ?
+              <button type="button" className="admin-btn ledger-empty-cta" onClick={() => openAddModal()}>
+                Add entry
+              </button>
+            : null}
+            {filtersActive ?
+              <button type="button" className="ledger-filter-clear" onClick={clearFilters}>
+                Clear filters
+              </button>
+            : null}
+          </div>
+        : (
           <>
             <div className="ledger-table-wrap admin-table-wrap">
               <table className="admin-table ledger-table">
@@ -2239,12 +2536,18 @@ export default function DayBookApp({ userRole = "staff" }) {
             </div>
 
             <ul className="ledger-entry-cards">
-              {filteredEntries.map((entry, index) => (
-                <li key={entry.id} className="ledger-entry-card">
+              {filteredEntries.map((entry) => (
+                <li
+                  key={entry.id}
+                  className={`ledger-entry-card is-${entryBadgeClass(entry)}`}
+                >
                   <div className="ledger-entry-card-top">
-                    <span className={`ledger-type-badge is-${entryBadgeClass(entry)}`}>
-                      {entryCategoryBadge(entry)}
-                    </span>
+                    <div className="ledger-entry-card-badges">
+                      <span className={`ledger-type-badge is-${entryBadgeClass(entry)}`}>
+                        {entryCategoryBadge(entry)}
+                      </span>
+                      <span className="ledger-entry-card-time">{formatAdminTime(entry.created_at)}</span>
+                    </div>
                     <strong className={isPaymentTaken(entry) ? "is-credit" : undefined}>
                       {entryAmountDisplay(entry)}
                     </strong>
@@ -2259,7 +2562,7 @@ export default function DayBookApp({ userRole = "staff" }) {
                   <div className="ledger-entry-card-foot">
                     <p className="ledger-entry-card-meta">
                       {isRangeView && entry.book_date ? `${entry.book_date} · ` : ""}
-                      {formatAdminTime(entry.created_at)} · {entry.created_by_name || "—"}
+                      {entry.created_by_name || "—"}
                     </p>
                     {canEdit ? (
                       <button
@@ -2278,7 +2581,7 @@ export default function DayBookApp({ userRole = "staff" }) {
         )}
       </section>
 
-      {canEdit && addOpen ? (
+      {canAddEntry && addOpen ?
         <div
           className={`admin-modal ledger-add-modal${addSimple ? " is-quick-sheet" : ""}${addSimple && category === "repair" ? " is-repair-sheet" : ""}`}
           role="dialog"
@@ -2299,6 +2602,17 @@ export default function DayBookApp({ userRole = "staff" }) {
                 {!addSimple ?
                   <p>Choose type and enter amount.</p>
                 : null}
+                {!isViewingToday ?
+                  <p className="ledger-add-modal-date">
+                    Saving to{" "}
+                    {formatAdminDateFromIso(selectedDayIso, {
+                      weekday: "short",
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    })}
+                  </p>
+                : null}
               </div>
               <button type="button" className="ledger-modal-close" onClick={closeAddModal} aria-label="Close">
                 ×
@@ -2307,13 +2621,13 @@ export default function DayBookApp({ userRole = "staff" }) {
             <div className="ledger-modal-body">{renderAddForm()}</div>
           </div>
         </div>
-      ) : null}
+      : null}
 
-      {canEdit ? (
+      {canAddEntry ?
         <button type="button" className="ledger-fab" aria-label="Add entry" onClick={() => openAddModal()}>
           +
         </button>
-      ) : null}
+      : null}
 
       {totals ? (
         <footer className="ledger-day-foot ledger-day-foot-desktop">

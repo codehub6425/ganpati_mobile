@@ -1629,6 +1629,10 @@
   color: #137333;
 }
 
+.swal2-container {
+  z-index: 10050 !important;
+}
+
 .admin-modal {
   position: fixed;
   inset: 0;
@@ -2517,6 +2521,12 @@
   }
 }
 
+.ledger-flow,
+.ledger-app {
+  min-width: 0;
+  max-width: 100%;
+}
+
 .ledger-app {
   padding-bottom: 88px;
 }
@@ -3306,17 +3316,71 @@
   color: #0369a1;
 }
 
+.ledger-summary-net-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.ledger-summary-net-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ledger-summary-net-left {
+  flex: 1;
+  min-width: 0;
+}
+
+.ledger-summary-net-title {
+  margin: 0;
+}
+
+.ledger-summary-net-total {
+  margin-top: 4px;
+}
+
 .ledger-summary-net-row {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 8px 12px;
+  gap: 6px 10px;
 }
 
 .ledger-summary-net-count {
   font-size: 12px;
   font-weight: 700;
   color: #5b6170;
+}
+
+.ledger-summary-net-profit {
+  flex-shrink: 0;
+  display: grid;
+  gap: 2px;
+  justify-items: end;
+  text-align: right;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(21, 128, 61, 0.2);
+  box-shadow: 0 2px 8px rgba(21, 128, 61, 0.08);
+}
+
+.ledger-summary-net-profit-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #15803d;
+}
+
+.ledger-summary-net-profit-value {
+  display: block;
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.15;
+  color: #15803d;
 }
 
 .ledger-quick {
@@ -3398,10 +3462,219 @@
 .ledger-entries {
   padding: 16px;
   margin-bottom: 14px;
+  min-width: 0;
+  overflow: visible;
 }
 
 .ledger-entries-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
   margin-bottom: 10px;
+}
+
+.ledger-entries-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.ledger-entries-head-export .ledger-export-btn {
+  min-height: 36px;
+  padding: 6px 10px;
+}
+
+.ledger-filter-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  min-height: 36px;
+  padding: 8px;
+  border: 1px solid #d7dce6;
+  border-radius: 10px;
+  background: #fff;
+  color: #111318;
+  cursor: pointer;
+}
+
+.ledger-filter-toggle.is-open,
+.ledger-filter-toggle.has-active {
+  border-color: #1a73e8;
+  color: #1a73e8;
+}
+
+.ledger-filter-toggle-dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #1a73e8;
+  border: 1.5px solid #fff;
+}
+
+.ledger-filter-dates {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.ledger-filter-dates .ledger-day-strip-wrap {
+  margin-bottom: 0;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+}
+
+.ledger-day-strip-wrap {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+}
+
+.ledger-day-strip {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 0 10px;
+  margin: 0;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #c5cce0 transparent;
+}
+
+.ledger-day-strip::-webkit-scrollbar {
+  height: 6px;
+}
+
+.ledger-day-strip::-webkit-scrollbar-thumb {
+  background: #c5cce0;
+  border-radius: 999px;
+}
+
+.ledger-day-pill {
+  flex: 0 0 auto;
+  scroll-snap-align: end;
+  min-width: 56px;
+  padding: 10px 12px;
+  border: 1px solid #e6e8ee;
+  border-radius: 12px;
+  background: #fff;
+  color: #111318;
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(17, 19, 24, 0.04);
+}
+
+.ledger-day-pill-label {
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.ledger-day-pill.is-today:not(.is-active) {
+  border-color: #93c5fd;
+  color: #1a73e8;
+}
+
+.ledger-day-pill.is-active {
+  border-color: #111318;
+  background: #111318;
+  box-shadow: 0 4px 12px rgba(17, 19, 24, 0.18);
+}
+
+.ledger-day-pill.is-active .ledger-day-pill-label {
+  color: #fff;
+}
+
+.ledger-filter-range-admin {
+  width: 100%;
+}
+
+.ledger-empty-state {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 28px 16px;
+  text-align: center;
+  border-radius: 14px;
+  border: 1px dashed #d7dce6;
+  background: #fafbfc;
+}
+
+.ledger-empty-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 800;
+  color: #111318;
+}
+
+.ledger-empty-hint {
+  margin: 0;
+  max-width: 280px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #5b6170;
+  font-weight: 600;
+}
+
+.ledger-empty-cta {
+  margin-top: 4px;
+}
+
+.ledger-entry-card-badges {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.ledger-entry-card-time {
+  font-size: 11px;
+  font-weight: 700;
+  color: #8b919e;
+}
+
+.ledger-entry-card {
+  border-left-width: 3px;
+  border-left-style: solid;
+  border-left-color: #eef1f6;
+}
+
+.ledger-entry-card.is-recharge {
+  border-left-color: #3b82f6;
+}
+
+.ledger-entry-card.is-money-transfer {
+  border-left-color: #8b5cf6;
+}
+
+.ledger-entry-card.is-accessory {
+  border-left-color: #f97316;
+}
+
+.ledger-entry-card.is-repair {
+  border-left-color: #ef4444;
+}
+
+.ledger-entry-card.is-payment,
+.ledger-entry-card.is-payment-in {
+  border-left-color: #22c55e;
 }
 
 .ledger-entries-count {
@@ -3413,12 +3686,101 @@
 
 .ledger-filter-panel {
   display: grid;
-  gap: 12px;
-  padding: 12px;
+  gap: 14px;
+  padding: 14px;
   margin-bottom: 14px;
-  border-radius: 14px;
+  border-radius: 16px;
+  background: #fff;
+  border: 1px solid #e6e8ee;
+  box-shadow: 0 8px 24px rgba(17, 19, 24, 0.08);
+  animation: ledger-filter-panel-in 0.2s ease-out;
+  min-width: 0;
+  max-width: 100%;
+  overflow: visible;
+  box-sizing: border-box;
+}
+
+@keyframes ledger-filter-panel-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.ledger-filter-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: -2px 0 2px;
+}
+
+.ledger-filter-panel-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: #111318;
+}
+
+.ledger-filter-panel-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid #e6e8ee;
+  border-radius: 10px;
   background: #f8fafc;
-  border: 1px solid #eef1f6;
+  color: #111318;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.ledger-filter-block {
+  display: grid;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid #eef1f6;
+  min-width: 0;
+}
+
+.ledger-filter-dates {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.ledger-filter-range-hint {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: #1a73e8;
+}
+
+.ledger-filter-range-link,
+.ledger-filter-range-back {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1a73e8;
+  cursor: pointer;
+  text-align: left;
+}
+
+.ledger-filter-range-extra {
+  display: grid;
+  gap: 8px;
+}
+
+.ledger-filter-panel-foot {
+  padding-top: 4px;
+  border-top: 1px solid #eef1f6;
 }
 
 .ledger-filter-search {
@@ -3909,6 +4271,9 @@
   .ledger-add-modal,
   .ledger-fab,
   .ledger-filter-panel,
+  .ledger-day-strip-wrap,
+  .ledger-filter-toggle,
+  .ledger-entries-head-actions,
   .ledger-top-add,
   .ledger-row-delete,
   .admin-date-pop,
@@ -4061,6 +4426,25 @@
   padding: 8px 14px;
   font-size: 13px;
   white-space: nowrap;
+}
+
+.ledger-hint-selected-day {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  padding: 10px 12px;
+  color: #1e3a8a;
+}
+
+.ledger-hint-selected-day strong {
+  font-weight: 800;
+}
+
+.ledger-add-modal-date {
+  margin: 6px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1a73e8;
 }
 
 .ledger-hint {
@@ -4666,6 +5050,11 @@
   .ledger-summary-card.is-net {
     grid-column: 1 / -1;
     flex-direction: row;
+    align-items: center;
+  }
+
+  .ledger-summary-net-profit-value {
+    font-size: 18px;
   }
 
   .ledger-summary-icon {
@@ -4924,6 +5313,15 @@
 .commission-rule-icon.is-redeem {
   background: #fef3c7;
   color: #b45309;
+}
+
+.commission-rule-icon.is-aps {
+  background: #e0e7ff;
+  color: #4338ca;
+}
+
+.commission-rule-card.is-aps {
+  border-color: #c7d2fe;
 }
 
 .commission-rule-icon.is-recharge {

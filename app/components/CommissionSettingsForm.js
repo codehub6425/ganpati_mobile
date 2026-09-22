@@ -7,21 +7,25 @@ import { showError, showSuccess } from "@/lib/swal";
 const CALC_OPTIONS = [
   { id: "percent", label: "Percent", hint: "% of amount" },
   { id: "fixed", label: "Fixed", hint: "₹ per entry" },
-  { id: "slab", label: "Slab", hint: "₹ base → ₹ cut" },
+  { id: "slab", label: "Slab", hint: "Tier steps (₹ per band)" },
 ];
 
 const RULE_META = {
   money_transfer_mt: { short: "M/T", tone: "mt" },
   money_transfer_redem: { short: "RD", tone: "redeem" },
+  money_transfer_aps: { short: "APS", tone: "aps" },
   recharge: { short: "RC", tone: "recharge" },
 };
 
 function ruleHelper(rule) {
   if (rule.rule_key === "money_transfer_mt") {
-    return "1% on transfer ₹1000 → ₹10 revenue";
+    return "₹0–1000 → ₹10 · ₹1000–2000 → ₹20 (each ₹1000 band, incl. ₹700 → ₹10)";
   }
   if (rule.rule_key === "money_transfer_redem") {
-    return "₹100 → ₹10 commission (₹250 redeem → ₹25)";
+    return "₹0–100 → ₹10 · ₹100–200 → ₹20 (each ₹100 band)";
+  }
+  if (rule.rule_key === "money_transfer_aps") {
+    return "Same tiers as M/T: ₹1000 band → ₹10 fee; deducted from collection";
   }
   if (rule.rule_key === "recharge") {
     return "2.5% on ₹1000 recharge → ₹25 revenue";
@@ -104,9 +108,9 @@ export default function CommissionSettingsForm({ initialRules = [] }) {
       <div className="commission-intro admin-card">
         <p className="commission-intro-title">Commission master</p>
         <p className="commission-intro-text">
-          Set default revenue for <strong>Recharge</strong>, <strong>M/T</strong>, and{" "}
-          <strong>Redeem</strong>. Staff see the calculated amount when adding entries and can change
-          it before saving.
+          Set default revenue for <strong>Recharge</strong>, <strong>M/T</strong>,{" "}
+          <strong>Redeem</strong>, and <strong>APS</strong>. Staff see the calculated fee when adding
+          entries and can change it before saving.
         </p>
       </div>
 
@@ -206,6 +210,12 @@ export default function CommissionSettingsForm({ initialRules = [] }) {
                 {rule.rule_key === "money_transfer_mt" ? (
                   <p className="commission-base-hint">
                     Uses <strong>transfer amount</strong> when filled; otherwise main amount.
+                  </p>
+                ) : null}
+                {rule.rule_key === "money_transfer_aps" ? (
+                  <p className="commission-base-hint">
+                    Fee is calculated on the APS amount entered, <strong>deducted from collection</strong>,
+                    and saved as shop profit (e.g. ₹1000 → ₹10 fee, ₹990 net collection).
                   </p>
                 ) : null}
               </div>
