@@ -72,9 +72,10 @@ export async function PATCH(request, { params }) {
   const hasName = Object.prototype.hasOwnProperty.call(body, "name");
   const hasEmail = Object.prototype.hasOwnProperty.call(body, "email");
   const hasPhone = Object.prototype.hasOwnProperty.call(body, "phone");
+  const hasAllowPast = Object.prototype.hasOwnProperty.call(body, "allow_past_daybooks");
   const hasProfile = hasName || hasEmail || hasPhone;
 
-  if (!hasStatus && !hasProfile) {
+  if (!hasStatus && !hasProfile && !hasAllowPast) {
     return NextResponse.json({ ok: false, message: "Nothing to update." }, { status: 400 });
   }
 
@@ -155,11 +156,17 @@ export async function PATCH(request, { params }) {
       ]);
     }
 
+    if (hasAllowPast) {
+      const allow = body.allow_past_daybooks ? 1 : 0;
+      await db.execute("UPDATE users SET allow_past_daybooks = ? WHERE id = ?", [allow, userId]);
+    }
+
     const refreshed = hasProfile ? nextStaffProfile(body, target) : null;
 
     return NextResponse.json({
       ok: true,
       ...(hasStatus ? { status: String(body.status).trim().toLowerCase() } : {}),
+      ...(hasAllowPast ? { allow_past_daybooks: Boolean(body.allow_past_daybooks) } : {}),
       ...(refreshed ?
         { name: refreshed.nextName, email: refreshed.nextEmail, phone: refreshed.nextPhone }
       : {}),

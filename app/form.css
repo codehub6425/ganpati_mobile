@@ -469,6 +469,13 @@ input:focus {
   grid-template-columns: 1fr 1fr;
 }
 
+.choice-hint {
+  margin: -2px 0 10px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
 .choice {
   margin: 0;
 }
@@ -496,6 +503,7 @@ input:focus {
 }
 
 .choice.problem span {
+  position: relative;
   min-height: 112px;
   padding: 12px 10px;
   justify-items: center;
@@ -532,13 +540,22 @@ input:focus {
   background: #111318;
   color: #fff;
   border-color: #111318;
-  transform: scale(1.03);
   animation: pop 0.28s ease;
 }
 
 .choice input:checked + span small,
 .choice input:checked + span i {
   color: #ffd0d4;
+}
+
+.choice.problem input:checked + span::after {
+  content: "✓";
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
 }
 
 .choice input:focus-visible + span {
@@ -807,13 +824,13 @@ input:focus {
 
 @keyframes pop {
   0% {
-    transform: scale(0.92);
+    transform: scale(0.96);
   }
   70% {
-    transform: scale(1.05);
+    transform: scale(1.02);
   }
   100% {
-    transform: scale(1.03);
+    transform: scale(1);
   }
 }
 

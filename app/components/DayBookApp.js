@@ -889,8 +889,8 @@ function LedgerDayStrip({ selectedFrom, selectedTo, onSelectDay, panelOpen = fal
   );
 }
 
-function LedgerDateRangeControl({ isAdmin, dateFrom, dateTo, onChange }) {
-  if (isAdmin) {
+function LedgerDateRangeControl({ canPickDates, dateFrom, dateTo, onChange }) {
+  if (canPickDates) {
     return (
       <DateRangeFilter
         variant="field"
@@ -910,8 +910,9 @@ function LedgerDateRangeControl({ isAdmin, dateFrom, dateTo, onChange }) {
   );
 }
 
-export default function DayBookApp({ userRole = "staff" }) {
+export default function DayBookApp({ userRole = "staff", allowPastDaybooks = false }) {
   const isAdmin = userRole === "admin";
+  const canPickDates = isAdmin || allowPastDaybooks;
   const [dateFrom, setDateFrom] = useState(todayDateString());
   const [dateTo, setDateTo] = useState(todayDateString());
   const [book, setBook] = useState(null);
@@ -2037,7 +2038,7 @@ export default function DayBookApp({ userRole = "staff" }) {
   }
 
   const dateRangeProps = {
-    isAdmin,
+    canPickDates,
     dateFrom,
     dateTo,
     onChange: handleDateRangeChange,
@@ -2067,7 +2068,11 @@ export default function DayBookApp({ userRole = "staff" }) {
         </p>
       ) : null}
       {!canEdit && book && !isRangeView ?
-        <p className="ledger-hint">View only — staff can edit today&apos;s accounts only.</p>
+        <p className="ledger-hint">
+          {canPickDates ?
+            "View only for this date — you cannot add or edit entries here."
+          : "View only — staff can open and edit today\u2019s daily accounts only. Ask an admin to allow past dates on your staff profile."}
+        </p>
       : null}
       {canAddEntry && !isViewingToday ?
         <p className="ledger-hint ledger-hint-selected-day">
@@ -2327,7 +2332,7 @@ export default function DayBookApp({ userRole = "staff" }) {
                 selectedTo={dateTo}
                 onSelectDay={selectLedgerDay}
               />
-              {isAdmin && dateFrom !== dateTo ?
+              {canPickDates && dateFrom !== dateTo ?
                 <p className="ledger-filter-range-hint">
                   Range:{" "}
                   {formatAdminDateFromIso(dateFrom, { day: "numeric", month: "short" })}
@@ -2335,7 +2340,7 @@ export default function DayBookApp({ userRole = "staff" }) {
                   {formatAdminDateFromIso(dateTo, { day: "numeric", month: "short", year: "numeric" })}
                 </p>
               : null}
-              {isAdmin ?
+              {canPickDates ?
                 <div className="ledger-filter-range-extra">
                   {rangePickerOpen ?
                     <div className="ledger-filter-range-field ledger-filter-range-admin">

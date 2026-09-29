@@ -22,7 +22,7 @@ export default async function AdminStaffPage({ searchParams }) {
   try {
     await ensureLeadsTable();
     const [rows] = await getPool().query(
-      `SELECT u.id, u.name, u.email, u.phone, u.status, u.created_at
+      `SELECT u.id, u.name, u.email, u.phone, u.status, u.created_at, u.allow_past_daybooks
        FROM users u
        JOIN roles r ON r.id = u.role_id
        WHERE r.slug = 'staff'
@@ -98,11 +98,15 @@ export default async function AdminStaffPage({ searchParams }) {
                   phone={person.phone || ""}
                   email={person.email || ""}
                   status={person.status || "active"}
+                  allowPastDaybooks={Boolean(Number(person.allow_past_daybooks))}
                   blockSuspend={person.id === actor.id}
                 />
               </div>
               <p className="admin-lead-foot">
-                {person.status === "suspended" ? "Login blocked" : "Panel access"} · {person.created_at}
+                {person.status === "suspended" ? "Login blocked" : "Panel access"}
+                {Number(person.allow_past_daybooks) ? " · Past daily accounts allowed" : " · Today only (daily accounts)"}
+                {" · "}
+                {person.created_at}
               </p>
             </article>
           ))}

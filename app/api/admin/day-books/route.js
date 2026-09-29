@@ -10,6 +10,8 @@ import {
 
   canEditDayBook,
 
+  canViewDayBookRange,
+
   computeTotals,
 
   formatEntryRow,
@@ -148,16 +150,17 @@ export async function GET(request) {
 
 
 
-  if (auth.user.role === "staff" && (from !== today || to !== today)) {
-
+  if (!canViewDayBookRange(auth.user, from, to)) {
     return NextResponse.json(
-
-      { ok: false, message: "Staff can only open today's daily accounts." },
-
+      {
+        ok: false,
+        message:
+          auth.user.role === "staff" ?
+            "You do not have permission to view previous dates. Ask an admin to enable past daily accounts for your account."
+          : "You cannot view this date range.",
+      },
       { status: 403 }
-
     );
-
   }
 
 

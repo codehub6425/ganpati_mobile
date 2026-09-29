@@ -3,6 +3,7 @@ import SwalMessage from "@/app/components/SwalMessage";
 import { dbErrorMessage, ensureLeadsTable, getPool } from "@/lib/db";
 import { formatAdminDateTimeMedium, formatPhone, telHref, titleCase } from "@/lib/format";
 import { distanceKm } from "@/lib/geo";
+import { parseProblems } from "@/lib/problems";
 
 export default async function AdminCustomersPage({ searchParams }) {
   const params = await searchParams;
@@ -107,7 +108,13 @@ export default async function AdminCustomersPage({ searchParams }) {
                 <div>
                   <span className="admin-col-label">Issue</span>
                   {customer.problem ? (
-                    <span className="admin-pill is-red">{customer.problem}</span>
+                    <div className="admin-pill-row">
+                      {parseProblems(customer.problem).map((item) => (
+                        <span className="admin-pill is-red" key={item}>
+                          {item}
+                        </span>
+                      ))}
+                    </div>
                   ) : (
                     <p>—</p>
                   )}

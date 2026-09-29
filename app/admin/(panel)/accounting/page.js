@@ -8,5 +8,10 @@ export default async function AccountingPage() {
     redirect("/admin/login");
   }
 
-  return <DayBookApp userRole={user.role} />;
+  return (
+    <DayBookApp
+      userRole={user.role}
+      allowPastDaybooks={Boolean(Number(user.allow_past_daybooks))}
+    />
+  );
 }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { ensureLeadsTable, getPool } from "@/lib/db";
 import { titleCase } from "@/lib/format";
 import { clientIp, deviceFromAgent, distanceKm } from "@/lib/geo";
+import { joinProblems, normalizeProblems } from "@/lib/problems";
 
 function clean(body) {
   const lat = Number(body.latitude);
@@ -9,10 +10,10 @@ function clean(body) {
   const accuracy = Number(body.accuracy);
 
   return {
-        name: titleCase(body.name),
+    name: titleCase(body.name),
     phone: String(body.phone || "").replace(/\D/g, ""),
     brand: String(body.brand || "").trim(),
-    problem: String(body.problem || "").trim(),
+    problem: joinProblems(normalizeProblems(body.problems ?? body.problem)),
     note: String(body.note || "").trim(),
     latitude: Number.isFinite(lat) ? lat : null,
     longitude: Number.isFinite(lng) ? lng : null,
@@ -27,7 +28,7 @@ function validate(values) {
     errors.phone = "Enter a valid 10-digit Indian mobile number.";
   }
   if (!values.brand) errors.brand = "Please select your phone brand.";
-  if (!values.problem) errors.problem = "Please choose the problem type.";
+  if (!values.problem) errors.problem = "Please choose at least one problem.";
   return errors;
 }
 

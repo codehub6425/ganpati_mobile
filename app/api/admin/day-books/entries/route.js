@@ -50,7 +50,11 @@ export async function POST(request) {
 
   const bookDate = parseBookDate(body.date) || todayDateString();
   if (!canEditDayBook(auth.user, bookDate)) {
-    return NextResponse.json({ ok: false, message: "You cannot add entries for this date." }, { status: 403 });
+    const message =
+      auth.user.role === "staff" ?
+        "You cannot add entries for this date. Staff without past-date access can only edit today — ask an admin to enable it on Staff."
+      : "You cannot add entries for this date.";
+    return NextResponse.json({ ok: false, message }, { status: 403 });
   }
 
   try {

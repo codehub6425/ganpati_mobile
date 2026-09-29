@@ -11,6 +11,7 @@ import {
   titleCase,
 } from "@/lib/format";
 import { distanceKm } from "@/lib/geo";
+import { hasProblem, parseProblems } from "@/lib/problems";
 
 function formatDistance(km) {
   if (km == null) return "Location not shared";
@@ -73,7 +74,7 @@ export default async function AdminLeadsPage({ searchParams }) {
     );
 
     brands = [...new Set(rows.map((row) => row.brand).filter(Boolean))];
-    problems = [...new Set(rows.map((row) => row.problem).filter(Boolean))];
+    problems = [...new Set(rows.flatMap((row) => parseProblems(row.problem)))].sort();
 
     counts.follow = rows.filter((row) => isFollowLead({ follow_status: row.follow_status })).length;
 
@@ -116,7 +117,7 @@ export default async function AdminLeadsPage({ searchParams }) {
           return false;
         }
         if (brand && lead.brand !== brand) return false;
-        if (problem && lead.problem !== problem) return false;
+        if (problem && !hasProblem(lead.problem, problem)) return false;
         if (q) {
           const hay = `${lead.name} ${lead.phone}`.toLowerCase();
           if (!hay.includes(q.toLowerCase())) return false;
@@ -203,7 +204,13 @@ export default async function AdminLeadsPage({ searchParams }) {
                   </div>
                   <div>
                     <span className="admin-col-label">Issue</span>
-                    <span className="admin-pill is-red">{lead.problem}</span>
+                    <div className="admin-pill-row">
+                      {parseProblems(lead.problem).map((item) => (
+                        <span className="admin-pill is-red" key={item}>
+                          {item}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                   <div>
                     <span className="admin-col-label">Brand</span>
@@ -282,7 +289,13 @@ export default async function AdminLeadsPage({ searchParams }) {
                         <span className="admin-phone-text">{lead.phone_label}</span>
                       </td>
                       <td>
-                        <span className="admin-pill is-red">{lead.problem}</span>
+                        <div className="admin-pill-row">
+                          {parseProblems(lead.problem).map((item) => (
+                            <span className="admin-pill is-red" key={item}>
+                              {item}
+                            </span>
+                          ))}
+                        </div>
                         {lead.note ? <p className="admin-sub">{lead.note}</p> : null}
                       </td>
                       <td>

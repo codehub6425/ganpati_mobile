@@ -2,13 +2,28 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { apiUrl } from "@/lib/basePath";
+
+const INVENTORY_SUB = [
+  { href: "/admin/inventory", label: "Dashboard" },
+  { href: "/admin/inventory/products", label: "Products" },
+  { href: "/admin/inventory/categories", label: "Categories" },
+  { href: "/admin/inventory/qr", label: "QR management" },
+  { href: "/admin/inventory/stock/add", label: "Add stock" },
+  { href: "/admin/inventory/stock", label: "Stock (QR)" },
+  { href: "/admin/inventory/scan", label: "Scan" },
+  { href: "/admin/inventory/sales/new", label: "Sales" },
+  { href: "/admin/inventory/purchases", label: "Purchases" },
+  { href: "/admin/inventory/requests", label: "Requests" },
+  { href: "/admin/inventory/reports", label: "Reports" },
+];
 
 const NAV = [
   { href: "/admin", label: "Dashboard", icon: "home" },
   { href: "/admin/leads", label: "Leads", icon: "leads" },
   { href: "/admin/accounting", label: "Daily Accounts", icon: "ledger" },
+  { href: "/admin/inventory", label: "Inventory", icon: "inventory", inventoryGroup: true },
   { href: "/admin/customers", label: "Customers", icon: "people" },
   { href: "/admin/profile", label: "Profile", icon: "profile" },
   { href: "/admin/staff", label: "Staff", icon: "staff", adminOnly: true },
@@ -22,10 +37,34 @@ const TABS = [
   { href: "/admin/leads", label: "Leads", icon: "leads" },
 ];
 
+function inventoryPageTitle(pathname) {
+  if (pathname === "/admin/inventory") return "Inventory dashboard";
+  if (pathname === "/admin/inventory/products/new") return "Add product";
+  if (pathname.match(/^\/admin\/inventory\/products\/[^/]+$/)) return "Edit product";
+  if (pathname.startsWith("/admin/inventory/products")) return "Products";
+  if (pathname.startsWith("/admin/inventory/categories")) return "Categories";
+  if (pathname.startsWith("/admin/inventory/qr")) return "QR management";
+  if (pathname.startsWith("/admin/inventory/stock/add")) return "Add stock";
+  if (pathname.startsWith("/admin/inventory/stock")) return "Stock (QR)";
+  if (pathname.startsWith("/admin/inventory/scan")) return "Scan product";
+  if (pathname.startsWith("/admin/inventory/sales")) return "Sales";
+  if (pathname.startsWith("/admin/inventory/purchases")) return "Purchases";
+  if (pathname.startsWith("/admin/inventory/requests")) return "Customer requests";
+  if (pathname.startsWith("/admin/inventory/reports")) return "Reports";
+  if (pathname.startsWith("/admin/inventory")) return "Inventory";
+  return null;
+}
+
 export default function AdminShell({ children, user = null }) {
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const inInventory = pathname.startsWith("/admin/inventory");
+  const [invOpen, setInvOpen] = useState(inInventory);
+
+  useEffect(() => {
+    if (inInventory) setInvOpen(true);
+  }, [inInventory]);
 
   async function logout() {
     await fetch(apiUrl("/api/admin/logout"), { method: "POST" });
@@ -35,25 +74,45 @@ export default function AdminShell({ children, user = null }) {
 
   function isActive(href) {
     if (href === "/admin") return pathname === "/admin";
+    if (href === "/admin/inventory") return inInventory;
     return pathname.startsWith(href);
+  }
+
+  function isInventorySubActive(href) {
+    if (href === "/admin/inventory") {
+      return pathname === "/admin/inventory";
+    }
+    if (href === "/admin/inventory/stock/add") {
+      return pathname.startsWith("/admin/inventory/stock/add");
+    }
+    if (href === "/admin/inventory/stock") {
+      return pathname === "/admin/inventory/stock";
+    }
+    if (href === "/admin/inventory/products") {
+      return pathname.startsWith("/admin/inventory/products");
+    }
+    return pathname === href || pathname.startsWith(`${href}/`);
   }
 
   const isAdmin = user?.role === "admin";
   const menu = NAV.filter((item) => !item.adminOnly || isAdmin);
 
+  const invTitle = inventoryPageTitle(pathname);
   const pageTitle = pathname.startsWith("/admin/leads")
     ? "Leads"
     : pathname.startsWith("/admin/accounting")
       ? "Daily Accounts"
-      : pathname.startsWith("/admin/profile")
-        ? "Profile"
-        : pathname.startsWith("/admin/customers")
-          ? "Customers"
-          : pathname.startsWith("/admin/staff")
-            ? "Staff"
-            : pathname.startsWith("/admin/settings")
-              ? "Settings"
-              : "Home";
+      : invTitle
+        ? invTitle
+        : pathname.startsWith("/admin/profile")
+          ? "Profile"
+          : pathname.startsWith("/admin/customers")
+            ? "Customers"
+            : pathname.startsWith("/admin/staff")
+              ? "Staff"
+              : pathname.startsWith("/admin/settings")
+                ? "Settings"
+                : "Home";
 
   return (
     <div className="admin-app">
@@ -68,14 +127,49 @@ export default function AdminShell({ children, user = null }) {
 
         <nav className="admin-nav">
           <p className="admin-nav-label">Menu</p>
-          {menu.map((item) =>
-            item.soon ? (
-              <span className="admin-nav-item is-soon" key={item.href}>
-                <MenuIcon name={item.icon} />
-                {item.label}
-                <em>Soon</em>
-              </span>
-            ) : (
+          {menu.map((item) => {
+            if (item.soon) {
+              return (
+                <span className="admin-nav-item is-soon" key={item.href}>
+                  <MenuIcon name={item.icon} />
+                  {item.label}
+                  <em>Soon</em>
+                </span>
+              );
+            }
+            if (item.inventoryGroup) {
+              return (
+                <div className="admin-nav-group" key={item.href}>
+                  <button
+                    type="button"
+                    className={`admin-nav-item admin-nav-group-toggle${inInventory ? " is-active" : ""}`}
+                    onClick={() => setInvOpen((v) => !v)}
+                    aria-expanded={invOpen}
+                  >
+                    <MenuIcon name={item.icon} />
+                    {item.label}
+                    <span className="admin-nav-chevron" aria-hidden="true">
+                      {invOpen ? "▾" : "▸"}
+                    </span>
+                  </button>
+                  {invOpen ?
+                    <div className="admin-nav-sub">
+                      {INVENTORY_SUB.map((sub) => (
+                        <Link
+                          key={sub.href}
+                          href={sub.href}
+                          className={`admin-nav-sub-item${isInventorySubActive(sub.href) ? " is-active" : ""}`}
+                          onClick={() => setOpen(false)}
+                        >
+                          {sub.label}
+                        </Link>
+                      ))}
+                    </div>
+                  : null}
+                </div>
+              );
+            }
+            return (
               <Link
                 key={item.href}
                 href={item.href}
@@ -85,8 +179,8 @@ export default function AdminShell({ children, user = null }) {
                 <MenuIcon name={item.icon} />
                 {item.label}
               </Link>
-            )
-          )}
+            );
+          })}
         </nav>
 
         <a className="admin-nav-item" href="/" target="_blank" rel="noreferrer">
@@ -194,7 +288,7 @@ function MenuIcon({ name }) {
       <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
         <path
           fill="currentColor"
-          d="M19.4 13a7.8 7.8 0 0 0 0-2l2.1-1.6-2-3.4-2.5 1a7.4 7.4 0 0 0-1.7-1L14.9 2h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.4L6.4 11a7.8 7.8 0 0 0 0 2L4.3 14.6l2 3.4 2.5-1a7.4 7.4 0 0 0 1.7 1l.4 2.9h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.4ZM12 15.5A3.5 3.5 0 1 1 15.5 12 3.5 3.5 0 0 1 12 15.5Z"
+          d="M19.4 13a7.8 7.8 0 0 0 0-2l2.1-1.6-2-2.4-2.5 1a7.4 7.4 0 0 0-1.7-1L14.9 2h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.4L6.4 11a7.8 7.8 0 0 0 0 2L4.3 14.6l2 3.4 2.5-1a7.4 7.4 0 0 0 1.7 1l.4 2.9h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.4ZM12 15.5A3.5 3.5 0 1 1 15.5 12 3.5 3.5 0 0 1 12 15.5Z"
         />
       </svg>
     ),
@@ -211,6 +305,14 @@ function MenuIcon({ name }) {
         <path
           fill="currentColor"
           d="M5 4h14a2 2 0 0 1 2 2v14a1 1 0 0 1-1 1H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm2 4v2h10V8H7Zm0 4v2h6v-2H7Z"
+        />
+      </svg>
+    ),
+    inventory: (
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+        <path
+          fill="currentColor"
+          d="M4 8h16v12H4V8Zm2 2v8h12v-8H6Zm-2-4h20v2H4V6Z"
         />
       </svg>
     ),

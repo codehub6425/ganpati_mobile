@@ -12,6 +12,7 @@ export default function StaffStatusActions({
   name = "",
   phone = "",
   email = "",
+  allowPastDaybooks = false,
   blockSuspend = false,
 }) {
   const router = useRouter();
@@ -22,6 +23,7 @@ export default function StaffStatusActions({
   const [nameDraft, setNameDraft] = useState(name || "");
   const [phoneDraft, setPhoneDraft] = useState(phone || "");
   const [emailDraft, setEmailDraft] = useState(email || "");
+  const [allowPastDraft, setAllowPastDraft] = useState(Boolean(allowPastDaybooks));
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
   const [mounted, setMounted] = useState(false);
@@ -36,8 +38,9 @@ export default function StaffStatusActions({
       setNameDraft(name || "");
       setPhoneDraft(phone || "");
       setEmailDraft(email || "");
+      setAllowPastDraft(Boolean(allowPastDaybooks));
     }
-  }, [name, phone, email, editOpen]);
+  }, [name, phone, email, allowPastDaybooks, editOpen]);
 
   useEffect(() => {
     if (!menuOpen) return undefined;
@@ -91,7 +94,38 @@ export default function StaffStatusActions({
     setNameDraft(name || "");
     setPhoneDraft(phone || "");
     setEmailDraft(email || "");
+    setAllowPastDraft(Boolean(allowPastDaybooks));
     setEditOpen(true);
+  }
+
+  async function toggleAllowPast() {
+    if (busy) return;
+    setMenuOpen(false);
+    const next = !allowPastDaybooks;
+    setBusy(true);
+    try {
+      const res = await fetch(apiUrl(`/api/admin/users/${userId}`), {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ allow_past_daybooks: next }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        showError(data.message || "Could not update permission.");
+        return;
+      }
+      await showSuccess(
+        next ?
+          "Staff can now view and edit previous daily accounts."
+        : "Staff limited to today\u2019s daily accounts only."
+      );
+      router.refresh();
+    } catch {
+      showError("Network error.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   function validateProfileDraft() {
@@ -130,6 +164,7 @@ export default function StaffStatusActions({
           name: nameDraft.trim(),
           email: emailDraft.trim().toLowerCase(),
           phone: phoneDraft.trim(),
+          allow_past_daybooks: allowPastDraft,
         }),
       });
       const data = await res.json();
@@ -204,6 +239,15 @@ export default function StaffStatusActions({
               onClick={openEditDetails}
             >
               Edit details
+            </button>
+            <button
+              className="admin-action-item"
+              type="button"
+              role="menuitem"
+              disabled={busy}
+              onClick={toggleAllowPast}
+            >
+              {allowPastDaybooks ? "Restrict to today (daily accounts)" : "Allow past daily accounts"}
             </button>
             {isActive ? (
               <button
@@ -285,6 +329,16 @@ export default function StaffStatusActions({
                 <p className="admin-field-hint">
                   At least mobile or email is required. Clear a field only if the other login is set.
                 </p>
+                <label className="admin-staff-perm-check">
+                  <input
+                    type="checkbox"
+                    checked={allowPastDraft}
+                    onChange={(event) => setAllowPastDraft(event.target.checked)}
+                  />
+                  <span>
+                    Allow viewing and editing <strong>previous dates</strong> in Daily Accounts (not only today)
+                  </span>
+                </label>
                 <button className="admin-follow-save" type="submit" disabled={busy}>
                   {busy ? "Saving…" : "Save changes"}
                 </button>

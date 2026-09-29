@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { apiUrl, assetUrl } from "@/lib/basePath";
+import { formatProblemPhrase, joinProblems } from "@/lib/problems";
 import { showError } from "@/lib/swal";
 
 const BRANDS = [
@@ -90,7 +91,7 @@ const PROBLEMS = [
   },
 ];
 
-const empty = { name: "", phone: "", brand: "", problem: "", note: "" };
+const empty = { name: "", phone: "", brand: "", problems: [], note: "" };
 
 const SHOP_MOBILE = "9782932128";
 const SHOP_TEL = `+91${SHOP_MOBILE}`;
@@ -103,7 +104,8 @@ function whatsappHref(text) {
 
 function repairWhatsappMessage({ brand = "", problem = "", name = "", note = "" } = {}) {
   const lines = ["Hi Ganpati Mobile Point,"];
-  if (problem) lines.push(`I need help with ${problem.toLowerCase()} repair.`);
+  const phrase = formatProblemPhrase(problem);
+  if (phrase) lines.push(`I need help with ${phrase} repair.`);
   else lines.push("I need a phone repair.");
   if (brand) lines.push(`Brand: ${brand}.`);
   if (note) lines.push(`Details: ${note}.`);
@@ -122,7 +124,7 @@ function validateForm(values) {
     errors.phone = "Enter a valid 10-digit Indian mobile number.";
   }
   if (!values.brand) errors.brand = "Please select your phone brand.";
-  if (!values.problem) errors.problem = "Please choose the problem type.";
+  if (!values.problems?.length) errors.problem = "Please choose at least one problem.";
   return errors;
 }
 
@@ -178,6 +180,19 @@ export default function RepairForm() {
   function update(name, value) {
     setValues((prev) => ({ ...prev, [name]: value }));
     setErrors((prev) => ({ ...prev, [name]: "" }));
+  }
+
+  function toggleProblem(value) {
+    setValues((prev) => {
+      const selected = new Set(prev.problems);
+      if (selected.has(value)) selected.delete(value);
+      else selected.add(value);
+      return {
+        ...prev,
+        problems: PROBLEMS.map((item) => item.value).filter((item) => selected.has(item)),
+      };
+    });
+    setErrors((prev) => ({ ...prev, problem: "" }));
   }
 
   function scrollToField(node) {
@@ -239,7 +254,12 @@ export default function RepairForm() {
       const response = await fetch(apiUrl("/api/leads"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...values, ...(coords || {}) }),
+        body: JSON.stringify({
+          ...values,
+          problem: joinProblems(values.problems),
+          problems: values.problems,
+          ...(coords || {}),
+        }),
       });
       const data = await response.json();
       if (!response.ok) {
@@ -257,10 +277,11 @@ export default function RepairForm() {
   }
 
   const extra = saved?.note ? ` · ${saved.note}` : "";
+  const selectedProblem = joinProblems(values.problems);
   const selectedWhatsapp = whatsappHref(
     repairWhatsappMessage({
       brand: values.brand,
-      problem: values.problem,
+      problem: selectedProblem,
       name: values.name,
       note: values.note,
     })
@@ -307,7 +328,7 @@ export default function RepairForm() {
             Phone problem? <span>Don't worry.</span> We'll fix it.
           </h1>
           <p className="hero-copy">
-            Scan done. Pick your brand and problem — we will call you back. Or tap a problem to WhatsApp us with the message already filled.
+            Scan done. Pick your brand and problems — we will call you back. Or tap a problem to WhatsApp us with the message already filled.
           </p>
           <div className="wa-quick" aria-label="WhatsApp a repair request">
             {PROBLEMS.filter((item) => item.value !== "Other").map((item) => (
@@ -421,15 +442,16 @@ export default function RepairForm() {
                     data-focus={focusTick && errors.problem ? "1" : undefined}
                   >
                     <legend>What is the problem?</legend>
-                    <div className="choice-grid problem-grid" role="radiogroup" aria-label="Problem type">
+                    <p className="choice-hint">Select all that apply</p>
+                    <div className="choice-grid problem-grid" role="group" aria-label="Problem types. You can select more than one.">
                       {PROBLEMS.map((item) => (
                         <label className="choice problem" key={item.value}>
                           <input
-                            type="radio"
+                            type="checkbox"
                             name="problem"
                             value={item.value}
-                            checked={values.problem === item.value}
-                            onChange={() => update("problem", item.value)}
+                            checked={values.problems.includes(item.value)}
+                            onChange={() => toggleProblem(item.value)}
                           />
                           <span>
                             <i aria-hidden="true">{item.icon}</i>
