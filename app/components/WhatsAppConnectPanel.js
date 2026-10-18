@@ -250,9 +250,13 @@ export default function WhatsAppConnectPanel() {
 
       {!configured ?
         <p className="wa-connect-error">
-          Set <code>WHATSAPP_GATEWAY_URL</code> and <code>WHATSAPP_GATEWAY_SECRET</code> in{" "}
-          <code>.env.local</code>, then restart the app. Keep the Machwale gateway running (
-          <code>npm start</code> in <code>whatsapp-gateway</code>).
+          WhatsApp env is missing on the server. Set non-empty{" "}
+          <code>WHATSAPP_GATEWAY_SECRET</code> and <code>WHATSAPP_GATEWAY_URL</code> (e.g.{" "}
+          <code>http://127.0.0.1:3001</code>) in <code>.env.local</code> or <code>.env.production</code>{" "}
+          in the Ganpati app folder, or in your PM2 <code>env</code> block — then{" "}
+          <code>npm run build</code> if needed and <code>pm2 restart</code>. The secret must match the
+          Machwale <code>whatsapp-gateway</code> process (keep it running with{" "}
+          <code>pm2</code> or <code>npm start</code>).
         </p>
       : null}
 
