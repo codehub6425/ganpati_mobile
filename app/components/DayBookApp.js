@@ -45,6 +45,8 @@ const EMPTY_FORM = {
   lead_id: null,
   repair_brand: "",
   repair_brand_other: "",
+  repair_has_warranty: false,
+  repair_warranty_months: "12",
   payment_flow: "given",
   commission_amount: "",
   commission_manual: false,
@@ -53,6 +55,18 @@ const EMPTY_FORM = {
 
 function accessoryLinesTotal(lines) {
   return (lines || []).reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
+}
+
+function repairDeviceBrand(form) {
+  if (form.repair_brand === "Other") return String(form.repair_brand_other || "").trim();
+  return String(form.repair_brand || "").trim();
+}
+
+function repairBillLineDescription(form) {
+  const brand = repairDeviceBrand(form);
+  const detail = String(form.description || "").trim();
+  if (brand && detail) return `${brand} — ${detail}`;
+  return brand || detail || "Repair";
 }
 
 function normalizeAccessoryLines(lines) {
@@ -421,6 +435,11 @@ function entryNote(entry) {
     parts.push(entry.description);
   }
   if (entry.payment_method) parts.push(entry.payment_method.toUpperCase());
+  if (entry.warranty_until) {
+    parts.push(`Warranty till ${formatWarrantyUntilLabel(entry.warranty_until)}`);
+  } else if (entry.warranty_months) {
+    parts.push(`${entry.warranty_months} mo warranty`);
+  }
   if (entry.lead_name) parts.push(`Lead: ${entry.lead_name}`);
   return parts.join(" · ") || "—";
 }
@@ -1130,7 +1149,7 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
   }, [refreshWhatsappStatus]);
 
   useEffect(() => {
-    if (!addOpen || category !== "accessory") return undefined;
+    if (!addOpen || (category !== "accessory" && category !== "repair")) return undefined;
     let cancelled = false;
     (async () => {
       const connected = await refreshWhatsappStatus();
@@ -1479,9 +1498,14 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
     });
   }
 
-  async function deliverWhatsappBillPayload(payload) {
+  async function deliverWhatsappBillPayload(payload, billKind = "accessory") {
+    const apiPath =
+      billKind === "repair" ?
+        "/api/admin/whatsapp/send-repair-bill"
+      : "/api/admin/whatsapp/send-accessory-bill";
+    const savedLabel = billKind === "repair" ? "Repair saved." : "Accessory sale saved.";
     try {
-      const billRes = await fetch(apiUrl("/api/admin/whatsapp/send-accessory-bill"), {
+      const billRes = await fetch(apiUrl(apiPath), {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -1489,16 +1513,16 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
       });
       const billData = await billRes.json().catch(() => ({}));
       if (billRes.ok || billData.ambiguous) {
-        showSuccess("Accessory sale saved. Bill sent on WhatsApp.");
+        showSuccess(`${savedLabel} Bill sent on WhatsApp.`);
         return;
       }
       showError(
-        billData.message || "Sale was saved, but WhatsApp could not send the bill.",
+        billData.message || "Entry was saved, but WhatsApp could not send the bill.",
         "WhatsApp"
       );
     } catch {
       showSuccess(
-        "Accessory sale saved. If the customer did not get WhatsApp, tap WhatsApp on the entry list."
+        `${savedLabel} If the customer did not get WhatsApp, tap WhatsApp on the entry list.`
       );
     }
   }
@@ -1595,7 +1619,7 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
         await loadSuggestions();
 
         if (billPayload) {
-          void deliverWhatsappBillPayload(billPayload);
+          void deliverWhatsappBillPayload(billPayload, "accessory");
         } else {
           showSuccess("Accessory sale saved.");
         }
@@ -1613,11 +1637,10 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
           lead_id: category === "repair" ? form.lead_id : undefined,
           customer_phone: customerPhone,
           customer_name: customerName,
-          device_brand:
-            category === "repair" ?
-              form.repair_brand === "Other" ?
-                form.repair_brand_other.trim()
-              : form.repair_brand.trim()
+          device_brand: category === "repair" ? repairDeviceBrand(form) || undefined : undefined,
+          warranty_months:
+            category === "repair" && form.repair_has_warranty && form.repair_warranty_months ?
+              form.repair_warranty_months
             : undefined,
           payment_flow: category === "payment" ? form.payment_flow || "given" : undefined,
           commission_amount:
@@ -1628,6 +1651,50 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
         });
         if (!res.ok) {
           showError(data.message || "Could not save.");
+          return;
+        }
+
+        if (category === "repair") {
+          const shouldSendBill =
+            sendWhatsappBill &&
+            whatsappConnected &&
+            customerPhone &&
+            customerPhone.length === 10;
+          const billPayload =
+            shouldSendBill ?
+              {
+                customer_phone: customerPhone,
+                customer_name: customerName,
+                date: saveDate,
+                lines: [
+                  {
+                    description: repairBillLineDescription(form),
+                    amount: form.amount,
+                    warranty_months:
+                      form.repair_has_warranty && form.repair_warranty_months ?
+                        form.repair_warranty_months
+                      : undefined,
+                    warranty_until:
+                      form.repair_has_warranty && saveDate && form.repair_warranty_months ?
+                        computeWarrantyUntil(saveDate, form.repair_warranty_months)
+                      : undefined,
+                  },
+                ],
+              }
+            : null;
+
+          resetForm(true);
+          setAddOpen(false);
+          setDateFrom(saveDate);
+          setDateTo(saveDate);
+          await loadRange(saveDate, saveDate);
+          await loadSuggestions();
+
+          if (billPayload) {
+            void deliverWhatsappBillPayload(billPayload, "repair");
+          } else {
+            showSuccess("Repair saved.");
+          }
           return;
         }
       }
@@ -1988,12 +2055,50 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
                   setForm((p) => ({ ...p, description }));
                 }}
               />
+              <div className="ledger-accessory-warranty ledger-repair-warranty">
+                <label className="ledger-accessory-warranty-check">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(form.repair_has_warranty)}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, repair_has_warranty: e.target.checked }))
+                    }
+                  />
+                  <span>Warranty on this repair</span>
+                </label>
+                {form.repair_has_warranty ?
+                  <>
+                    <select
+                      className="ledger-accessory-warranty-months"
+                      value={form.repair_warranty_months || "12"}
+                      aria-label="Repair warranty months"
+                      onChange={(e) =>
+                        setForm((p) => ({ ...p, repair_warranty_months: e.target.value }))
+                      }
+                    >
+                      {WARRANTY_MONTH_CHOICES.map((m) => (
+                        <option key={m} value={String(m)}>
+                          {m} months
+                        </option>
+                      ))}
+                    </select>
+                    {selectedDayIso && form.repair_warranty_months ?
+                      <span className="ledger-accessory-warranty-until">
+                        Valid till{" "}
+                        {formatWarrantyUntilLabel(
+                          computeWarrantyUntil(selectedDayIso, form.repair_warranty_months)
+                        )}
+                      </span>
+                    : null}
+                  </>
+                : null}
+              </div>
             </>
           ) : null}
 
           {customerAfterDetails ? customerLinkPanel : null}
 
-          {category === "accessory" ?
+          {category === "accessory" || category === "repair" ?
             <div className="ledger-whatsapp-bill-block">
               <p className="ledger-whatsapp-bill-block-title">WhatsApp bill</p>
               {customerLinkMode !== "customer" ?
@@ -2190,7 +2295,7 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
   }
 
   async function sendEntryWhatsappBill(entry) {
-    if (entry.category !== "accessory") return;
+    if (entry.category !== "accessory" && entry.category !== "repair") return;
     const phone = String(entry.customer_phone || "").replace(/\D/g, "").slice(-10);
     if (phone.length !== 10) {
       showError("This entry has no customer mobile. Link a customer when adding the sale.");
@@ -2201,8 +2306,18 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
       return;
     }
     setWhatsappBillBusyId(entry.id);
+    const apiPath =
+      entry.category === "repair" ?
+        "/api/admin/whatsapp/send-repair-bill"
+      : "/api/admin/whatsapp/send-accessory-bill";
+    const lineDescription =
+      entry.category === "repair" ?
+        entry.device_brand && entry.description ?
+          `${entry.device_brand} — ${entry.description}`
+        : entry.description || entry.device_brand || "Repair"
+      : entry.description || "Accessory";
     try {
-      const res = await fetch(apiUrl("/api/admin/whatsapp/send-accessory-bill"), {
+      const res = await fetch(apiUrl(apiPath), {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -2213,7 +2328,7 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
           date: entry.book_date,
           lines: [
             {
-              description: entry.description || "Accessory",
+              description: lineDescription,
               amount: entry.amount,
               warranty_months: entry.warranty_months || undefined,
               warranty_until: entry.warranty_until || undefined,
@@ -2237,7 +2352,8 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
   function renderEntryActions(entry) {
     if (!canEdit) return null;
     const phoneOk = String(entry.customer_phone || "").replace(/\D/g, "").length >= 10;
-    const showWa = entry.category === "accessory" && phoneOk;
+    const showWa =
+      (entry.category === "accessory" || entry.category === "repair") && phoneOk;
     return (
       <div className="ledger-row-actions">
         {showWa ?
