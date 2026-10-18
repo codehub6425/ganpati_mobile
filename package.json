@@ -2,11 +2,12 @@
   "name": "ganpati-repair-form",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 3000",
     "dev:clean": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\" && next dev",
     "build": "next build",
     "start": "next start",
-    "migrate": "node scripts/migrate.js"
+    "migrate": "node scripts/migrate.js",
+    "test:whatsapp": "node scripts/test-whatsapp-flow.mjs"
   },
   "dependencies": {
     "html5-qrcode": "^2.3.8",

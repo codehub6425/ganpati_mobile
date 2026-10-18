@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
 import { userMustChangePassword } from "@/lib/staff";
+import AdminDevPortBanner from "../../components/AdminDevPortBanner";
 import AdminShell from "../../components/AdminShell";
 import "../../admin.css";
 
@@ -23,6 +24,7 @@ export default async function AdminPanelLayout({ children }) {
 
   return (
     <AdminShell user={{ name: user.name, role: user.role }}>
+      <AdminDevPortBanner />
       {children}
     </AdminShell>
   );

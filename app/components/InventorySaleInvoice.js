@@ -9,7 +9,7 @@ export default function InventorySaleInvoice({ sale }) {
   return (
     <div className="inventory-invoice ledger-print-sheet" id="inventory-invoice">
       <header className="inventory-invoice-head">
-        <h1>Ganpati Mobile</h1>
+        <h1>Ganpati Mobile Point</h1>
         <p>Sale invoice #{sale.id}</p>
         <p>Date: {sale.sale_date}</p>
       </header>

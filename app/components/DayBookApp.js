@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { apiUrl } from "@/lib/basePath";
 import { commissionEligible, suggestCommission } from "@/lib/commission";
@@ -21,7 +22,12 @@ import {
   todayDateString,
 } from "@/lib/ledger";
 import { PHONE_BRANDS } from "@/lib/brands";
-import { confirmAction, showError } from "@/lib/swal";
+import {
+  computeWarrantyUntil,
+  formatWarrantyUntilLabel,
+  WARRANTY_MONTH_CHOICES,
+} from "@/lib/warranty";
+import { confirmAction, showError, showSuccess } from "@/lib/swal";
 import DateRangeFilter from "./DateRangeFilter";
 import LeadPicker from "./LeadPicker";
 
@@ -42,7 +48,7 @@ const EMPTY_FORM = {
   payment_flow: "given",
   commission_amount: "",
   commission_manual: false,
-  accessory_lines: [{ description: "", amount: "" }],
+  accessory_lines: [{ description: "", amount: "", has_warranty: false, warranty_months: "24" }],
 };
 
 function accessoryLinesTotal(lines) {
@@ -54,8 +60,14 @@ function normalizeAccessoryLines(lines) {
     .map((row) => ({
       description: String(row.description || "").trim(),
       amount: String(row.amount ?? "").trim(),
+      has_warranty: Boolean(row.has_warranty),
+      warranty_months: String(row.warranty_months ?? "24"),
     }))
     .filter((row) => row.description || row.amount);
+}
+
+function defaultAccessoryLine() {
+  return { description: "", amount: "", has_warranty: false, warranty_months: "24" };
 }
 
 const SUMMARY_META = {
@@ -417,7 +429,7 @@ function LedgerInlineSpinner({ size = 18 }) {
   return <span className="ledger-inline-spinner" style={{ width: size, height: size }} aria-hidden="true" />;
 }
 
-function AccessoryLinesEditor({ lines, onChange, suggestions, compact, error }) {
+function AccessoryLinesEditor({ lines, onChange, suggestions, compact, error, saleDateIso }) {
   const listId = useId();
   const picks = suggestions.slice(0, compact ? 4 : 8);
   const total = accessoryLinesTotal(lines);
@@ -427,12 +439,12 @@ function AccessoryLinesEditor({ lines, onChange, suggestions, compact, error }) 
   }
 
   function addLine() {
-    onChange([...lines, { description: "", amount: "" }]);
+    onChange([...lines, defaultAccessoryLine()]);
   }
 
   function removeLine(index) {
     if (lines.length <= 1) {
-      onChange([{ description: "", amount: "" }]);
+      onChange([defaultAccessoryLine()]);
       return;
     }
     onChange(lines.filter((_, i) => i !== index));
@@ -452,36 +464,76 @@ function AccessoryLinesEditor({ lines, onChange, suggestions, compact, error }) 
         ))}
       </datalist>
       <ul className="ledger-accessory-line-list">
-        {lines.map((line, index) => (
-          <li key={index} className="ledger-accessory-line">
-            <input
-              type="text"
-              list={listId}
-              placeholder="e.g. Charger"
-              value={line.description}
-              aria-label={`Item ${index + 1} name`}
-              onChange={(e) => updateLine(index, { description: e.target.value })}
-            />
-            <input
-              type="number"
-              min="0"
-              step="1"
-              inputMode="numeric"
-              placeholder="₹"
-              value={line.amount}
-              aria-label={`Item ${index + 1} amount`}
-              onChange={(e) => updateLine(index, { amount: e.target.value.replace(/[^\d.]/g, "") })}
-            />
-            <button
-              type="button"
-              className="ledger-accessory-line-remove"
-              aria-label={`Remove item ${index + 1}`}
-              onClick={() => removeLine(index)}
-            >
-              ×
-            </button>
-          </li>
-        ))}
+        {lines.map((line, index) => {
+          const warrantyMonths = line.has_warranty ? Number(line.warranty_months) : 0;
+          const warrantyUntil =
+            line.has_warranty && saleDateIso && warrantyMonths > 0 ?
+              computeWarrantyUntil(saleDateIso, warrantyMonths)
+            : null;
+          return (
+            <li key={index} className="ledger-accessory-line-wrap">
+              <div className="ledger-accessory-line">
+                <input
+                  type="text"
+                  list={listId}
+                  placeholder="e.g. Charger"
+                  value={line.description}
+                  aria-label={`Item ${index + 1} name`}
+                  onChange={(e) => updateLine(index, { description: e.target.value })}
+                />
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  inputMode="numeric"
+                  placeholder="₹"
+                  value={line.amount}
+                  aria-label={`Item ${index + 1} amount`}
+                  onChange={(e) => updateLine(index, { amount: e.target.value.replace(/[^\d.]/g, "") })}
+                />
+                <button
+                  type="button"
+                  className="ledger-accessory-line-remove"
+                  aria-label={`Remove item ${index + 1}`}
+                  onClick={() => removeLine(index)}
+                >
+                  ×
+                </button>
+              </div>
+              <div className="ledger-accessory-warranty">
+                <label className="ledger-accessory-warranty-check">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(line.has_warranty)}
+                    onChange={(e) => updateLine(index, { has_warranty: e.target.checked })}
+                  />
+                  <span>Warranty</span>
+                </label>
+                {line.has_warranty ?
+                  <>
+                    <select
+                      className="ledger-accessory-warranty-months"
+                      value={line.warranty_months || "24"}
+                      aria-label={`Item ${index + 1} warranty months`}
+                      onChange={(e) => updateLine(index, { warranty_months: e.target.value })}
+                    >
+                      {WARRANTY_MONTH_CHOICES.map((m) => (
+                        <option key={m} value={String(m)}>
+                          {m} months
+                        </option>
+                      ))}
+                    </select>
+                    {warrantyUntil ?
+                      <span className="ledger-accessory-warranty-until">
+                        Valid till {formatWarrantyUntilLabel(warrantyUntil)}
+                      </span>
+                    : null}
+                  </>
+                : null}
+              </div>
+            </li>
+          );
+        })}
       </ul>
       {!compact && picks.length > 0 ?
         <div className="ledger-item-picks" role="list">
@@ -495,7 +547,7 @@ function AccessoryLinesEditor({ lines, onChange, suggestions, compact, error }) 
                 if (emptyIndex >= 0) {
                   updateLine(emptyIndex, { description: item });
                 } else {
-                  onChange([...lines, { description: item, amount: "" }]);
+                  onChange([...lines, { ...defaultAccessoryLine(), description: item }]);
                 }
               }}
             >
@@ -944,6 +996,10 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
   const [rechargeSummaryOpen, setRechargeSummaryOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [rangePickerOpen, setRangePickerOpen] = useState(false);
+  const [whatsappConnected, setWhatsappConnected] = useState(false);
+  const [whatsappConfigured, setWhatsappConfigured] = useState(true);
+  const [sendWhatsappBill, setSendWhatsappBill] = useState(false);
+  const [whatsappBillBusyId, setWhatsappBillBusyId] = useState(null);
 
   const canEdit = book?.can_edit ?? false;
   const mtBreakdown = useMemo(() => computeMtBreakdown(entries), [entries]);
@@ -1054,6 +1110,37 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
       root.style.removeProperty("--keyboard-inset");
     };
   }, [addOpen]);
+
+  const refreshWhatsappStatus = useCallback(async () => {
+    try {
+      const res = await fetch(apiUrl("/api/admin/whatsapp/status"), { credentials: "include" });
+      const data = await res.json();
+      const connected = Boolean(data.connected);
+      setWhatsappConnected(connected);
+      setWhatsappConfigured(data.configured !== false);
+      return connected;
+    } catch {
+      setWhatsappConnected(false);
+      return false;
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshWhatsappStatus();
+  }, [refreshWhatsappStatus]);
+
+  useEffect(() => {
+    if (!addOpen || category !== "accessory") return undefined;
+    let cancelled = false;
+    (async () => {
+      const connected = await refreshWhatsappStatus();
+      if (cancelled) return;
+      if (connected) setSendWhatsappBill(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [addOpen, category, refreshWhatsappStatus]);
 
   function scrollFieldIntoView(event) {
     const el = event.target;
@@ -1186,6 +1273,8 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
     resetCustomerLink();
     setMtTypeError(false);
     setCommissionEditOpen(false);
+    setSendWhatsappBill(false);
+    setWhatsappConnected(false);
     setAddOpen(true);
   }
 
@@ -1390,6 +1479,30 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
     });
   }
 
+  async function deliverWhatsappBillPayload(payload) {
+    try {
+      const billRes = await fetch(apiUrl("/api/admin/whatsapp/send-accessory-bill"), {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const billData = await billRes.json().catch(() => ({}));
+      if (billRes.ok || billData.ambiguous) {
+        showSuccess("Accessory sale saved. Bill sent on WhatsApp.");
+        return;
+      }
+      showError(
+        billData.message || "Sale was saved, but WhatsApp could not send the bill.",
+        "WhatsApp"
+      );
+    } catch {
+      showSuccess(
+        "Accessory sale saved. If the customer did not get WhatsApp, tap WhatsApp on the entry list."
+      );
+    }
+  }
+
   async function submitEntry(event) {
     event.preventDefault();
     if (!canAddEntry || !selectedDayIso) return;
@@ -1441,12 +1554,52 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
             payment_method: form.payment_method || undefined,
             customer_phone: customerPhone,
             customer_name: customerName,
+            warranty_months:
+              line.has_warranty && line.warranty_months ? line.warranty_months : undefined,
           });
           if (!res.ok) {
             showError(data.message || `Could not save ${line.description}.`);
             return;
           }
         }
+        const shouldSendBill =
+          sendWhatsappBill &&
+          whatsappConnected &&
+          customerPhone &&
+          customerPhone.length === 10;
+        const billPayload =
+          shouldSendBill ?
+            {
+              customer_phone: customerPhone,
+              customer_name: customerName,
+              payment_method: form.payment_method || undefined,
+              date: saveDate,
+              lines: lines.map((row) => ({
+                description: row.description,
+                amount: row.amount,
+                warranty_months:
+                  row.has_warranty && row.warranty_months ? row.warranty_months : undefined,
+                warranty_until:
+                  row.has_warranty && saveDate && row.warranty_months ?
+                    computeWarrantyUntil(saveDate, row.warranty_months)
+                  : undefined,
+              })),
+            }
+          : null;
+
+        resetForm(true);
+        setAddOpen(false);
+        setDateFrom(saveDate);
+        setDateTo(saveDate);
+        await loadRange(saveDate, saveDate);
+        await loadSuggestions();
+
+        if (billPayload) {
+          void deliverWhatsappBillPayload(billPayload);
+        } else {
+          showSuccess("Accessory sale saved.");
+        }
+        return;
       } else {
         const { res, data } = await postEntry({
           date: saveDate,
@@ -1607,9 +1760,10 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
 
           {category === "accessory" ?
             <AccessoryLinesEditor
-              lines={form.accessory_lines || [{ description: "", amount: "" }]}
+              lines={form.accessory_lines || [defaultAccessoryLine()]}
               suggestions={itemSuggestions.accessory}
               compact={simple}
+              saleDateIso={selectedDayIso || todayDateString()}
               error={formErrors.accessory_lines}
               onChange={(accessory_lines) => {
                 clearFormError("accessory_lines");
@@ -1839,6 +1993,47 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
 
           {customerAfterDetails ? customerLinkPanel : null}
 
+          {category === "accessory" ?
+            <div className="ledger-whatsapp-bill-block">
+              <p className="ledger-whatsapp-bill-block-title">WhatsApp bill</p>
+              {customerLinkMode !== "customer" ?
+                <p className="ledger-whatsapp-bill-hint">
+                  To send a bill after save, tap{" "}
+                  <button type="button" className="ledger-inline-link" onClick={enableCustomerLink}>
+                    Customer
+                  </button>{" "}
+                  and enter the customer mobile.
+                </p>
+              : form.customer_phone.length !== 10 ?
+                <p className="ledger-whatsapp-bill-hint">Enter the full 10-digit mobile number.</p>
+              : !whatsappConfigured ?
+                <p className="ledger-whatsapp-bill-hint">
+                  WhatsApp gateway is not configured on the server (.env).
+                </p>
+              : !whatsappConnected ?
+                <p className="ledger-whatsapp-bill-hint">
+                  Link shop WhatsApp in{" "}
+                  <Link href="/admin/settings" className="ledger-inline-link">
+                    Settings
+                  </Link>{" "}
+                  first, then tick below.
+                </p>
+              : null}
+              {customerLinkMode === "customer" &&
+              form.customer_phone.length === 10 &&
+              whatsappConnected ?
+                <label className="ledger-whatsapp-bill-opt">
+                  <input
+                    type="checkbox"
+                    checked={sendWhatsappBill}
+                    onChange={(e) => setSendWhatsappBill(e.target.checked)}
+                  />
+                  <span>Send bill on WhatsApp when entry is saved</span>
+                </label>
+              : null}
+            </div>
+          : null}
+
           {category === "payment" ? (
             <>
               <div className="ledger-payment-flow">
@@ -1992,6 +2187,82 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
       return;
     }
     await load();
+  }
+
+  async function sendEntryWhatsappBill(entry) {
+    if (entry.category !== "accessory") return;
+    const phone = String(entry.customer_phone || "").replace(/\D/g, "").slice(-10);
+    if (phone.length !== 10) {
+      showError("This entry has no customer mobile. Link a customer when adding the sale.");
+      return;
+    }
+    if (!whatsappConnected) {
+      showError("WhatsApp is not connected. Open Settings and link the shop WhatsApp first.");
+      return;
+    }
+    setWhatsappBillBusyId(entry.id);
+    try {
+      const res = await fetch(apiUrl("/api/admin/whatsapp/send-accessory-bill"), {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customer_phone: phone,
+          customer_name: entry.customer_name || undefined,
+          payment_method: entry.payment_method || undefined,
+          date: entry.book_date,
+          lines: [
+            {
+              description: entry.description || "Accessory",
+              amount: entry.amount,
+              warranty_months: entry.warranty_months || undefined,
+              warranty_until: entry.warranty_until || undefined,
+            },
+          ],
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok && !data.ambiguous) {
+        showError(data.message || "Could not send WhatsApp bill.", "Bill not sent");
+        return;
+      }
+      showSuccess("Bill sent on WhatsApp.");
+    } catch {
+      showError("Could not send WhatsApp bill.");
+    } finally {
+      setWhatsappBillBusyId(null);
+    }
+  }
+
+  function renderEntryActions(entry) {
+    if (!canEdit) return null;
+    const phoneOk = String(entry.customer_phone || "").replace(/\D/g, "").length >= 10;
+    const showWa = entry.category === "accessory" && phoneOk;
+    return (
+      <div className="ledger-row-actions">
+        {showWa ?
+          <button
+            type="button"
+            className="ledger-row-whatsapp"
+            disabled={whatsappBillBusyId === entry.id || !whatsappConnected}
+            title={
+              whatsappConnected ? "Send bill on WhatsApp" : "Connect WhatsApp in Settings first"
+            }
+            onClick={() => sendEntryWhatsappBill(entry)}
+          >
+            {whatsappBillBusyId === entry.id ? "Sending…" : "WhatsApp"}
+          </button>
+        : null}
+        <button
+          type="button"
+          className="ledger-row-delete"
+          onClick={() => removeEntry(entry.id)}
+          aria-label="Delete entry"
+        >
+          Delete
+        </button>
+      </div>
+    );
   }
 
   function onLeadPick(leadId, lead) {
@@ -2522,18 +2793,7 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
                       </td>
                       <td>{entryNote(entry)}</td>
                       <td>{entry.created_by_name || "—"}</td>
-                      {canEdit ? (
-                        <td>
-                          <button
-                            type="button"
-                            className="ledger-row-delete"
-                            onClick={() => removeEntry(entry.id)}
-                            aria-label="Delete entry"
-                          >
-                            Delete
-                          </button>
-                        </td>
-                      ) : null}
+                      {canEdit ? <td>{renderEntryActions(entry)}</td> : null}
                     </tr>
                   ))}
                 </tbody>
@@ -2569,15 +2829,7 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
                       {isRangeView && entry.book_date ? `${entry.book_date} · ` : ""}
                       {entry.created_by_name || "—"}
                     </p>
-                    {canEdit ? (
-                      <button
-                        type="button"
-                        className="ledger-row-delete"
-                        onClick={() => removeEntry(entry.id)}
-                      >
-                        Delete
-                      </button>
-                    ) : null}
+                    {canEdit ? renderEntryActions(entry) : null}
                   </div>
                 </li>
               ))}

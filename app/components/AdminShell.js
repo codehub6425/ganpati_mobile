@@ -120,7 +120,7 @@ export default function AdminShell({ children, user = null }) {
         <div className="admin-brand">
           <span className="admin-brand-mark">G</span>
           <div>
-            <strong>Ganpati Mobile</strong>
+            <strong>Ganpati Mobile Point</strong>
             <small>{user?.role === "staff" ? "Staff panel" : "Admin panel"}</small>
           </div>
         </div>

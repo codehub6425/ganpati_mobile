@@ -3032,6 +3032,61 @@
   gap: 8px;
 }
 
+.ledger-whatsapp-bill-opt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f0f7ff;
+  border: 1px solid #c8ddf5;
+  font-size: 14px;
+  font-weight: 600;
+  color: #111318;
+  cursor: pointer;
+}
+
+.ledger-whatsapp-bill-opt input {
+  width: 18px;
+  height: 18px;
+  accent-color: #2563eb;
+}
+
+.ledger-whatsapp-bill-block {
+  display: grid;
+  gap: 8px;
+}
+
+.ledger-whatsapp-bill-block-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 800;
+  color: #111318;
+}
+
+.ledger-whatsapp-bill-hint {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #5b6170;
+}
+
+.ledger-inline-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #2563eb;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+a.ledger-inline-link {
+  text-decoration: underline;
+}
+
 .ledger-customer-phone-label {
   display: block;
   margin: 0;
@@ -3249,7 +3304,12 @@
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 8px;
+  gap: 10px;
+}
+
+.ledger-accessory-line-wrap {
+  display: grid;
+  gap: 6px;
 }
 
 .ledger-accessory-line {
@@ -3257,6 +3317,47 @@
   grid-template-columns: 1fr minmax(72px, 88px) 36px;
   gap: 6px;
   align-items: center;
+}
+
+.ledger-accessory-warranty {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 0 2px;
+}
+
+.ledger-accessory-warranty-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  cursor: pointer;
+}
+
+.ledger-accessory-warranty-check input {
+  width: 16px;
+  height: 16px;
+  accent-color: #2563eb;
+}
+
+.ledger-accessory-warranty-months {
+  min-height: 36px;
+  padding: 6px 10px;
+  border: 1px solid #e6e8ee;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 13px;
+  background: #fff;
+}
+
+.ledger-accessory-warranty-until {
+  font-size: 12px;
+  color: #15803d;
+  font-weight: 600;
 }
 
 .ledger-accessory-line input {
@@ -4139,6 +4240,33 @@
 .ledger-amount-cell {
   font-weight: 800;
   white-space: nowrap;
+}
+
+.ledger-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.ledger-row-whatsapp {
+  border: 0;
+  background: transparent;
+  color: #128c7e;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.ledger-row-whatsapp:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.ledger-row-whatsapp:hover:not(:disabled) {
+  text-decoration: underline;
 }
 
 .ledger-row-delete {
@@ -5292,6 +5420,231 @@
   line-height: 1.45;
 }
 
+.wa-connect-panel,
+.message-templates {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.admin-settings-link-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.admin-settings-link-card h2 {
+  margin: 0 0 6px;
+  font-size: 17px;
+}
+
+.admin-settings-link-card-body p {
+  margin: 0;
+}
+
+.admin-settings-link-btn {
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.admin-settings-back {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.admin-settings-back a {
+  color: #2563eb;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.admin-settings-back a:hover {
+  text-decoration: underline;
+}
+
+.admin-dev-port-banner {
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.admin-dev-port-banner a {
+  color: #b91c1c;
+  font-weight: 700;
+}
+
+.wa-connect-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.wa-connect-head h2 {
+  margin: 0 0 6px;
+  font-size: 18px;
+}
+
+.wa-connect-status {
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #eef1f6;
+  color: #5b6170;
+}
+
+.wa-connect-status.is-connected {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.wa-connect-status.is-qr,
+.wa-connect-status.is-pairing {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.wa-connect-phone {
+  margin: 0 0 10px;
+  font-size: 14px;
+}
+
+.wa-connect-error {
+  margin: 0 0 10px;
+  color: #b91c1c;
+  font-size: 14px;
+}
+
+.wa-connect-qr {
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+.wa-connect-qr img {
+  border-radius: 12px;
+  border: 1px solid #e8ecf2;
+}
+
+.wa-connect-codeblock {
+  margin-bottom: 12px;
+}
+
+.wa-connect-codetitle {
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+
+.wa-connect-codevalue {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.wa-connect-bubble {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  height: 2.5rem;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: #111318;
+  color: #fff;
+  font-weight: 800;
+  font-size: 18px;
+  letter-spacing: 0.06em;
+}
+
+.wa-connect-bubbledash {
+  align-self: center;
+  font-weight: 800;
+  color: #5b6170;
+  padding: 0 2px;
+}
+
+.wa-connect-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.wa-connect-pairform {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+}
+
+.wa-connect-pairform label span {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.wa-connect-pairform input {
+  width: 100%;
+  max-width: 280px;
+}
+
+.wa-connect-pairactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.wa-connect-codeform {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+  margin-top: 12px;
+}
+
+.wa-connect-codeform label {
+  flex: 1;
+  min-width: 160px;
+}
+
+.message-template-card header h2 {
+  margin: 0 0 4px;
+  font-size: 17px;
+}
+
+.message-template-field {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0;
+}
+
+.message-template-field textarea {
+  width: 100%;
+  min-height: 200px;
+  font-family: ui-monospace, monospace;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.message-templates-placeholders {
+  margin-top: 8px;
+  font-size: 13px;
+  word-break: break-word;
+}
+
 .commission-settings {
   display: grid;
   gap: 16px;
@@ -5789,6 +6142,12 @@
   background: #fff;
   color: #111318;
   border: 1px solid #d7dce6;
+}
+
+.admin-btn-danger {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
 }
 
 .inventory-app {

@@ -15,6 +15,7 @@ import {
 } from "@/lib/ledger";
 import { isStaffUser } from "@/lib/roles";
 import { ensureCustomerForLedger } from "@/lib/users";
+import { computeWarrantyUntil } from "@/lib/warranty";
 
 async function requireStaff() {
   const user = await getSessionUser();
@@ -95,10 +96,13 @@ export async function POST(request) {
       commission_manual = resolved.commission_manual ? 1 : 0;
     }
 
+    const warranty_until =
+      e.warranty_months ? computeWarrantyUntil(bookDate, e.warranty_months) : null;
+
     const [result] = await db.execute(
       `INSERT INTO ledger_entries
-        (day_book_id, category, amount, transfer_amount, mt_subtype, provider, description, payment_method, lead_id, customer_phone, device_brand, payment_flow, commission_amount, commission_manual, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (day_book_id, category, amount, transfer_amount, mt_subtype, provider, description, payment_method, lead_id, customer_phone, device_brand, payment_flow, commission_amount, commission_manual, warranty_months, warranty_until, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         book.id,
         e.category,
@@ -114,6 +118,8 @@ export async function POST(request) {
         e.payment_flow,
         commission_amount,
         commission_manual,
+        e.warranty_months,
+        warranty_until,
         auth.user.id,
       ]
     );

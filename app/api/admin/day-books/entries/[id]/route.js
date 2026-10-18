@@ -14,6 +14,7 @@ import {
 import { adminBookDateIso } from "@/lib/format";
 import { isStaffUser } from "@/lib/roles";
 import { ensureCustomerForLedger } from "@/lib/users";
+import { computeWarrantyUntil } from "@/lib/warranty";
 
 async function requireStaff() {
   const user = await getSessionUser();
@@ -100,11 +101,15 @@ export async function PATCH(request, { params }) {
       commission_manual = resolved.commission_manual ? 1 : 0;
     }
 
+    const warranty_until =
+      e.warranty_months ? computeWarrantyUntil(date, e.warranty_months) : null;
+
     await db.execute(
       `UPDATE ledger_entries
        SET category = ?, amount = ?, transfer_amount = ?, mt_subtype = ?, provider = ?,
            description = ?, payment_method = ?, lead_id = ?, customer_phone = ?, device_brand = ?,
-           payment_flow = ?, commission_amount = ?, commission_manual = ?
+           payment_flow = ?, commission_amount = ?, commission_manual = ?,
+           warranty_months = ?, warranty_until = ?
        WHERE id = ?`,
       [
         e.category,
@@ -120,6 +125,8 @@ export async function PATCH(request, { params }) {
         e.payment_flow,
         commission_amount,
         commission_manual,
+        e.warranty_months,
+        warranty_until,
         entryId,
       ]
     );
