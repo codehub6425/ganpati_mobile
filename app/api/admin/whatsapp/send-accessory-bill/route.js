@@ -3,6 +3,7 @@ import { getSessionUser } from "@/lib/auth";
 import { isStaffUser } from "@/lib/roles";
 import { ensureLeadsTable } from "@/lib/db";
 import { sendAccessoryBill } from "@/lib/whatsapp-bills";
+import { finishWhatsappBillSend } from "@/lib/whatsapp-send-route.js";
 
 export async function POST(request) {
   const user = await getSessionUser();
@@ -27,17 +28,5 @@ export async function POST(request) {
     date,
   });
 
-  if (!result.ok) {
-    const message = result.error || "Could not send bill on WhatsApp.";
-    const status =
-      result.ambiguous ? 503
-      : message.toLowerCase().includes("not connected") ? 409
-      : 422;
-    return NextResponse.json(
-      { ok: false, ambiguous: Boolean(result.ambiguous), message },
-      { status }
-    );
-  }
-
-  return NextResponse.json({ ok: true, via: result.via });
+  return finishWhatsappBillSend({ result, userId: user.id, userName: user.name, body });
 }

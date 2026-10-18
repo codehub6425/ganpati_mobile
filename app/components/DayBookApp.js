@@ -4,7 +4,13 @@ import Link from "next/link";
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { apiUrl } from "@/lib/basePath";
 import { commissionEligible, suggestCommission } from "@/lib/commission";
-import { adminShiftIsoDays, formatAdminDateFromIso, formatAdminTime } from "@/lib/format";
+import {
+  adminShiftIsoDays,
+  formatAdminDateFromIso,
+  formatAdminDateTime,
+  formatAdminDateTimeMedium,
+  formatAdminTime,
+} from "@/lib/format";
 import {
   CATEGORY_LABELS,
   DEFAULT_PAYMENT_TAKEN_ITEMS,
@@ -30,6 +36,8 @@ import {
 import { confirmAction, showError, showSuccess } from "@/lib/swal";
 import DateRangeFilter from "./DateRangeFilter";
 import LeadPicker from "./LeadPicker";
+import LedgerEntryActions from "./LedgerEntryActions";
+import WhatsappBrandIcon from "./WhatsappBrandIcon";
 
 const CUSTOMER_LINK_CATEGORIES = ["recharge", "money_transfer", "accessory", "repair"];
 
@@ -426,6 +434,38 @@ function entryItemLabel(entry) {
   }
 }
 
+function entryWhatsappBillLogTitle(entry) {
+  const log = Array.isArray(entry.whatsapp_bill_log) ? entry.whatsapp_bill_log : [];
+  if (!log.length) return "";
+  return log
+    .map((row, index) => {
+      const who = row.by_name ? ` · ${row.by_name}` : "";
+      return `${index + 1}. ${formatAdminDateTimeMedium(row.at)}${who}`;
+    })
+    .join("\n");
+}
+
+function entryWhatsappBillNote(entry) {
+  const count = Number(entry.whatsapp_bill_send_count) || 0;
+  if (count < 1) return "";
+  const log = Array.isArray(entry.whatsapp_bill_log) ? entry.whatsapp_bill_log : [];
+  const timeLabels = log.map((row) => formatAdminTime(row.at)).filter((t) => t && t !== "—");
+  if (!timeLabels.length && entry.whatsapp_bill_last_sent_at) {
+    timeLabels.push(formatAdminTime(entry.whatsapp_bill_last_sent_at));
+  }
+  let timesText = "";
+  if (timeLabels.length === 1) {
+    timesText = timeLabels[0];
+  } else if (timeLabels.length > 1 && timeLabels.length <= 4) {
+    timesText = timeLabels.join(", ");
+  } else if (timeLabels.length > 4) {
+    timesText = `${timeLabels.slice(-3).join(", ")} (+${timeLabels.length - 3} earlier)`;
+  }
+  return timesText ?
+      `WhatsApp bill sent · ${count}× · ${timesText}`
+    : `WhatsApp bill sent · ${count}×`;
+}
+
 function entryNote(entry) {
   const parts = [];
   if (entry.category === "money_transfer" && entry.transfer_amount) {
@@ -441,6 +481,8 @@ function entryNote(entry) {
     parts.push(`${entry.warranty_months} mo warranty`);
   }
   if (entry.lead_name) parts.push(`Lead: ${entry.lead_name}`);
+  const waNote = entryWhatsappBillNote(entry);
+  if (waNote) parts.push(waNote);
   return parts.join(" · ") || "—";
 }
 
@@ -1019,6 +1061,9 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
   const [whatsappConfigured, setWhatsappConfigured] = useState(true);
   const [sendWhatsappBill, setSendWhatsappBill] = useState(false);
   const [whatsappBillBusyId, setWhatsappBillBusyId] = useState(null);
+  const [waLogEntry, setWaLogEntry] = useState(null);
+  const [waLogEvents, setWaLogEvents] = useState([]);
+  const [waLogLoading, setWaLogLoading] = useState(false);
 
   const canEdit = book?.can_edit ?? false;
   const mtBreakdown = useMemo(() => computeMtBreakdown(entries), [entries]);
@@ -1514,6 +1559,7 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
       const billData = await billRes.json().catch(() => ({}));
       if (billRes.ok || billData.ambiguous) {
         showSuccess(`${savedLabel} Bill sent on WhatsApp.`);
+        await load();
         return;
       }
       showError(
@@ -1569,6 +1615,7 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
         const lines = normalizeAccessoryLines(form.accessory_lines).filter(
           (row) => row.description && row.amount !== "" && Number(row.amount) >= 0
         );
+        const savedEntryIds = [];
         for (const line of lines) {
           const { res, data } = await postEntry({
             date: saveDate,
@@ -1585,6 +1632,7 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
             showError(data.message || `Could not save ${line.description}.`);
             return;
           }
+          if (data.entry?.id) savedEntryIds.push(data.entry.id);
         }
         const shouldSendBill =
           sendWhatsappBill &&
@@ -1608,6 +1656,7 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
                     computeWarrantyUntil(saveDate, row.warranty_months)
                   : undefined,
               })),
+              ledger_entry_ids: savedEntryIds,
             }
           : null;
 
@@ -1655,6 +1704,7 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
         }
 
         if (category === "repair") {
+          const savedRepairId = data.entry?.id;
           const shouldSendBill =
             sendWhatsappBill &&
             whatsappConnected &&
@@ -1666,6 +1716,7 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
                 customer_phone: customerPhone,
                 customer_name: customerName,
                 date: saveDate,
+                ledger_entry_ids: savedRepairId ? [savedRepairId] : [],
                 lines: [
                   {
                     description: repairBillLineDescription(form),
@@ -2294,6 +2345,30 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
     await load();
   }
 
+  function closeWaLogModal() {
+    setWaLogEntry(null);
+    setWaLogEvents([]);
+    setWaLogLoading(false);
+  }
+
+  async function openEntryWhatsappLog(entry) {
+    setWaLogEntry(entry);
+    setWaLogLoading(true);
+    setWaLogEvents([]);
+    try {
+      const qs = new URLSearchParams({ entry_id: String(entry.id) });
+      const res = await fetch(apiUrl(`/api/admin/whatsapp/bill-log?${qs}`), {
+        credentials: "include",
+      });
+      const data = await res.json();
+      if (res.ok) setWaLogEvents(data.events || []);
+    } catch {
+      // keep empty
+    } finally {
+      setWaLogLoading(false);
+    }
+  }
+
   async function sendEntryWhatsappBill(entry) {
     if (entry.category !== "accessory" && entry.category !== "repair") return;
     const phone = String(entry.customer_phone || "").replace(/\D/g, "").slice(-10);
@@ -2326,6 +2401,7 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
           customer_name: entry.customer_name || undefined,
           payment_method: entry.payment_method || undefined,
           date: entry.book_date,
+          ledger_entry_ids: [entry.id],
           lines: [
             {
               description: lineDescription,
@@ -2342,6 +2418,7 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
         return;
       }
       showSuccess("Bill sent on WhatsApp.");
+      await load();
     } catch {
       showError("Could not send WhatsApp bill.");
     } finally {
@@ -2351,33 +2428,18 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
 
   function renderEntryActions(entry) {
     if (!canEdit) return null;
-    const phoneOk = String(entry.customer_phone || "").replace(/\D/g, "").length >= 10;
-    const showWa =
-      (entry.category === "accessory" || entry.category === "repair") && phoneOk;
+    const waCount = Number(entry.whatsapp_bill_send_count) || 0;
     return (
-      <div className="ledger-row-actions">
-        {showWa ?
-          <button
-            type="button"
-            className="ledger-row-whatsapp"
-            disabled={whatsappBillBusyId === entry.id || !whatsappConnected}
-            title={
-              whatsappConnected ? "Send bill on WhatsApp" : "Connect WhatsApp in Settings first"
-            }
-            onClick={() => sendEntryWhatsappBill(entry)}
-          >
-            {whatsappBillBusyId === entry.id ? "Sending…" : "WhatsApp"}
-          </button>
-        : null}
-        <button
-          type="button"
-          className="ledger-row-delete"
-          onClick={() => removeEntry(entry.id)}
-          aria-label="Delete entry"
-        >
-          Delete
-        </button>
-      </div>
+      <LedgerEntryActions
+        entry={entry}
+        whatsappConnected={whatsappConnected}
+        sending={whatsappBillBusyId === entry.id}
+        waCount={waCount}
+        historyTitle={entryWhatsappBillLogTitle(entry)}
+        onSendWhatsapp={() => sendEntryWhatsappBill(entry)}
+        onShowHistory={() => openEntryWhatsappLog(entry)}
+        onDelete={() => removeEntry(entry.id)}
+      />
     );
   }
 
@@ -2691,6 +2753,14 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
                 <span className="ledger-filter-toggle-dot" aria-hidden="true" />
               : null}
             </button>
+            <Link
+              href={`/admin/accounting/whatsapp-log?from=${encodeURIComponent(dateFrom)}&to=${encodeURIComponent(dateTo)}`}
+              className="ledger-entries-wa-log-link"
+              title="WhatsApp send log"
+              aria-label="WhatsApp send log"
+            >
+              <WhatsappBrandIcon size={24} />
+            </Link>
             <span className="ledger-entries-head-export">
               <LedgerExportButton onClick={exportDayBookPdf} />
             </span>
@@ -3000,6 +3070,55 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
         <button type="button" className="ledger-fab" aria-label="Add entry" onClick={() => openAddModal()}>
           +
         </button>
+      : null}
+
+      {waLogEntry ?
+        <div className="admin-modal ledger-wa-log-modal" role="dialog" aria-modal="true">
+          <div className="admin-modal-backdrop" onClick={closeWaLogModal} aria-hidden="true" />
+          <div className="admin-modal-card ledger-wa-log-card">
+            <div className="admin-modal-head">
+              <div>
+                <h3>WhatsApp send log</h3>
+                <p className="admin-muted ledger-wa-log-sub">
+                  {entryItemLabel(waLogEntry)}
+                  {waLogEntry.customer_name || waLogEntry.customer_phone ?
+                    ` · ${waLogEntry.customer_name || ""}${waLogEntry.customer_phone ? ` ${waLogEntry.customer_phone}` : ""}`
+                  : ""}
+                </p>
+              </div>
+              <button type="button" className="ledger-modal-close" onClick={closeWaLogModal} aria-label="Close">
+                ×
+              </button>
+            </div>
+            <div className="ledger-wa-log-body">
+              {waLogLoading ?
+                <p className="admin-muted">Loading…</p>
+              : waLogEvents.length === 0 ?
+                <p className="admin-muted">No WhatsApp bills sent for this entry yet.</p>
+              : <ol className="ledger-wa-log-list">
+                  {waLogEvents.map((ev) => (
+                    <li key={ev.id}>
+                      <strong>{formatAdminDateTimeMedium(ev.sent_at)}</strong>
+                      <span className="admin-muted">
+                        {" "}
+                        · Send {ev.send_number} of {ev.send_total}
+                        {ev.sent_by_name ? ` · ${ev.sent_by_name}` : ""}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              }
+              <p className="ledger-wa-log-foot">
+                <Link
+                  href={`/admin/accounting/whatsapp-log?from=${encodeURIComponent(waLogEntry.book_date || dateFrom)}&to=${encodeURIComponent(waLogEntry.book_date || dateTo)}`}
+                  className="ledger-inline-link"
+                >
+                  Open full WhatsApp log
+                </Link>
+              </p>
+            </div>
+          </div>
+        </div>
       : null}
 
       {totals ? (

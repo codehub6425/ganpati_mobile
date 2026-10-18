@@ -3647,8 +3647,9 @@ a.ledger-inline-link {
 
 .ledger-entries-head-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   flex-shrink: 0;
 }
 
@@ -4249,15 +4250,80 @@ a.ledger-inline-link {
   gap: 8px;
 }
 
+.ledger-row-actions.is-menu-only {
+  justify-content: flex-end;
+}
+
+.ledger-entry-menu-btn {
+  flex-shrink: 0;
+}
+
+.ledger-entry-action-menu {
+  min-width: 248px;
+}
+
+.ledger-entry-action-wa {
+  color: #067647;
+}
+
+.ledger-entry-action-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.ledger-entry-action-meta {
+  font-weight: 600;
+  color: #667085;
+}
+
+.ledger-entry-action-history {
+  justify-content: space-between;
+}
+
+.ledger-entry-action-badge {
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #ecfdf3;
+  color: #067647;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 22px;
+  text-align: center;
+}
+
+.wa-brand-icon {
+  display: block;
+  flex-shrink: 0;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.12);
+}
+
 .ledger-row-whatsapp {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   border: 0;
   background: transparent;
-  color: #128c7e;
+  color: #067647;
   font: inherit;
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
   white-space: nowrap;
+  padding: 2px 0;
+}
+
+.ledger-row-whatsapp-label {
+  line-height: 1.2;
+}
+
+.ledger-wa-send-count {
+  font-size: 11px;
+  font-weight: 800;
+  color: #0d6b5f;
+  opacity: 0.9;
 }
 
 .ledger-row-whatsapp:disabled {
@@ -4265,8 +4331,129 @@ a.ledger-inline-link {
   cursor: not-allowed;
 }
 
-.ledger-row-whatsapp:hover:not(:disabled) {
+.ledger-row-whatsapp:hover:not(:disabled) .ledger-row-whatsapp-label {
   text-decoration: underline;
+}
+
+.ledger-row-whatsapp.is-sent {
+  color: #067647;
+}
+
+.ledger-row-wa-history {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+  line-height: 0;
+}
+
+.ledger-row-wa-history:hover .wa-brand-icon {
+  filter: brightness(0.96);
+  box-shadow: 0 2px 6px rgba(37, 211, 102, 0.35);
+}
+
+.ledger-row-wa-history.has-sends .wa-brand-icon {
+  box-shadow: 0 2px 6px rgba(37, 211, 102, 0.4);
+}
+
+.ledger-wa-history-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #128c7e;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 16px;
+  text-align: center;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.15);
+}
+
+.ledger-entries-wa-log-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  line-height: 0;
+  text-decoration: none;
+}
+
+.ledger-entries-wa-log-link:hover .wa-brand-icon {
+  filter: brightness(0.96);
+  box-shadow: 0 2px 8px rgba(37, 211, 102, 0.45);
+}
+
+.ledger-wa-log-modal .ledger-wa-log-card {
+  max-width: 420px;
+}
+
+.ledger-wa-log-list {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ledger-wa-log-list li {
+  line-height: 1.4;
+}
+
+.ledger-wa-log-foot {
+  margin: 16px 0 0;
+  font-size: 13px;
+}
+
+.ledger-wa-log-sub {
+  margin: 4px 0 0;
+  font-size: 13px;
+}
+
+.wa-bill-log-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.wa-bill-log-head h1 {
+  margin: 8px 0 4px;
+  font-size: 1.35rem;
+}
+
+.wa-bill-log-kicker {
+  margin: 0;
+  font-size: 13px;
+}
+
+.wa-bill-log-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+}
+
+.wa-bill-log-summary {
+  margin: 0;
+}
+
+.wa-bill-log-error {
+  color: #b42318;
+  margin: 0;
+}
+
+.wa-bill-log-phone {
+  display: block;
+  color: #667085;
 }
 
 .ledger-row-delete {
