@@ -23,6 +23,7 @@ export default function LedgerEntryActions({
   historyTitle,
   onSendWhatsapp,
   onShowHistory,
+  onPrintBill,
   onDelete,
 }) {
   const btnRef = useRef(null);
@@ -113,6 +114,20 @@ export default function LedgerEntryActions({
                   <small className="ledger-entry-action-meta"> · sent {waCount}×</small>
                 : null}
               </span>
+            </button>
+          : null}
+
+          {showBillActions && onPrintBill ?
+            <button
+              type="button"
+              className="admin-action-item"
+              role="menuitem"
+              onClick={() => {
+                closeMenu();
+                onPrintBill();
+              }}
+            >
+              Print / PDF bill
             </button>
           : null}
 

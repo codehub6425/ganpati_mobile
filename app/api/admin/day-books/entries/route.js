@@ -15,6 +15,7 @@ import {
 } from "@/lib/ledger";
 import { isStaffUser } from "@/lib/roles";
 import { ensureCustomerForLedger } from "@/lib/users";
+import { formatInvoiceNo } from "@/lib/sale-bill";
 import { computeWarrantyUntil } from "@/lib/warranty";
 
 async function requireStaff() {
@@ -101,8 +102,8 @@ export async function POST(request) {
 
     const [result] = await db.execute(
       `INSERT INTO ledger_entries
-        (day_book_id, category, amount, transfer_amount, mt_subtype, provider, description, payment_method, lead_id, customer_phone, device_brand, payment_flow, commission_amount, commission_manual, warranty_months, warranty_until, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (day_book_id, category, amount, transfer_amount, mt_subtype, provider, description, payment_method, lead_id, customer_phone, device_brand, payment_flow, commission_amount, commission_manual, warranty_months, warranty_until, serial_number, made_in_date, invoice_no, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         book.id,
         e.category,
@@ -120,9 +121,20 @@ export async function POST(request) {
         commission_manual,
         e.warranty_months,
         warranty_until,
+        e.serial_number,
+        e.made_in_date,
+        e.invoice_no,
         auth.user.id,
       ]
     );
+
+    if ((e.category === "accessory" || e.category === "repair") && !e.invoice_no) {
+      const invoiceNo = formatInvoiceNo(result.insertId);
+      await db.execute("UPDATE ledger_entries SET invoice_no = ? WHERE id = ?", [
+        invoiceNo,
+        result.insertId,
+      ]);
+    }
 
     const [rows] = await db.query(
       `SELECT e.*, b.book_date, l.name AS lead_name, l.phone AS lead_phone, u.name AS created_by_name

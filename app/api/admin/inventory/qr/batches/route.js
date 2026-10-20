@@ -38,7 +38,11 @@ export async function POST(request) {
   try {
     await ensureLeadsTable();
     const db = getPool();
-    const batch = await createQrBatch(db, auth.user.id, { prefix, count });
+    const batch = await createQrBatch(db, auth.user.id, {
+      prefix,
+      count,
+      label_size: body.label_size,
+    });
     return NextResponse.json({ ok: true, batch });
   } catch (error) {
     console.error(error);

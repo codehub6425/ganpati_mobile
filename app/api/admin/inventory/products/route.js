@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { ensureLeadsTable, getPool } from "@/lib/db";
 import { formatProductRow, validateProductInput } from "@/lib/inventory";
+import { applyProductImageFields } from "@/lib/product-image-upload.js";
 import { isStaffUser } from "@/lib/roles";
 
 async function requireStaff() {
@@ -113,6 +114,18 @@ export async function POST(request) {
       ]
     );
     const productId = result.insertId;
+
+    const imageApply = await applyProductImageFields(body, productId, null);
+    if (imageApply.error) {
+      return NextResponse.json({ ok: false, message: imageApply.error }, { status: 400 });
+    }
+    if (imageApply.image_storage_key !== undefined) {
+      await db.execute("UPDATE products SET image_storage_key = ? WHERE id = ?", [
+        imageApply.image_storage_key,
+        productId,
+      ]);
+    }
+
     if (initialQty > 0) {
       await db.execute(
         `INSERT INTO stock_movements (product_id, movement_type, qty_delta, unit_cost, note, created_by)

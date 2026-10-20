@@ -26,14 +26,14 @@ const MODULES = [
   {
     href: "/admin/inventory/qr",
     title: "QR management",
-    desc: "Generate batches and print sticker PDFs",
+    desc: "Print stickers → link at stock-in → scan to sell",
     icon: "▦",
     accent: "sky",
   },
   {
     href: "/admin/inventory/stock/add",
     title: "Add stock",
-    desc: "Scan QR and link to serialized products",
+    desc: "Link a sticker and optionally add serial, date, warranty",
     icon: "➕",
     accent: "green",
   },
@@ -47,7 +47,7 @@ const MODULES = [
   {
     href: "/admin/inventory/scan",
     title: "Scan",
-    desc: "Lookup, sell, finance, or return by QR",
+    desc: "See price, serial, warranty — sell and print the bill",
     icon: "📷",
     accent: "blue",
   },
@@ -105,7 +105,7 @@ export default function InventoryDashboard() {
       <header className="inv-hub-header">
         <div>
           <h1>Inventory dashboard</h1>
-          <p>Overview of stock, sales, QR workflow, and quick access to every inventory tool.</p>
+          <p>Print stickers, link them at stock-in, then scan to sell. Quantity items still use New sale.</p>
         </div>
         <div className="inv-dash-head-actions">
           <Link href="/admin/inventory/sales/new" className="admin-btn">

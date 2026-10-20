@@ -11,6 +11,7 @@ export default async function AccountingPage() {
   return (
     <DayBookApp
       userRole={user.role}
+      userName={user.name || ""}
       allowPastDaybooks={Boolean(Number(user.allow_past_daybooks))}
     />
   );

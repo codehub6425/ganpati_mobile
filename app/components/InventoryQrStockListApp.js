@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import InvPageShell from "@/app/components/InvPageShell";
 import { apiUrl } from "@/lib/basePath";
+import { confirmAction, showError, showSuccess } from "@/lib/swal";
 
 const STATUS_OPTS = [
   { value: "", label: "All status" },
@@ -36,6 +37,30 @@ export default function InventoryQrStockListApp() {
     const t = setTimeout(load, search ? 250 : 0);
     return () => clearTimeout(t);
   }, [load, search]);
+
+  async function removeUnusedCode(u) {
+    if (u.is_linked || u.status !== "unassigned") {
+      showError("Linked QR codes cannot be deleted.");
+      return;
+    }
+    const ok = await confirmAction({
+      title: "Delete unused code?",
+      text: `${u.code} will be removed permanently.`,
+      confirmText: "Delete",
+    });
+    if (!ok) return;
+    const res = await fetch(apiUrl(`/api/admin/inventory/qr/units?code=${encodeURIComponent(u.code)}`), {
+      method: "DELETE",
+      credentials: "include",
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      showError(data.message || "Could not delete.");
+      return;
+    }
+    showSuccess("Unused code removed.");
+    load();
+  }
 
   return (
     <InvPageShell
@@ -71,7 +96,8 @@ export default function InventoryQrStockListApp() {
               <th>Code</th>
               <th>Product</th>
               <th>Status</th>
-              <th>Linked</th>
+              <th>Product link</th>
+              <th>Linked on</th>
               <th />
             </tr>
           </thead>
@@ -81,13 +107,31 @@ export default function InventoryQrStockListApp() {
                 <td>
                   <strong>{u.code}</strong>
                 </td>
-                <td>{u.product_name || "—"}</td>
+                <td>
+                  {u.product_id && u.product_name ?
+                    <Link href={`/admin/inventory/products/${u.product_id}`}>{u.product_name}</Link>
+                  : "—"}
+                </td>
                 <td>
                   <span className={`inv-status-pill inv-qr-${u.status}`}>{u.status.replace("_", " ")}</span>
                 </td>
-                <td>{u.linked_at ? new Date(u.linked_at).toLocaleDateString("en-IN") : "—"}</td>
                 <td>
+                  {u.is_linked ?
+                    <span className="inv-status-pill is-ok">Linked</span>
+                  : u.status === "unassigned" ?
+                    <span className="inv-status-pill is-muted">Not linked</span>
+                  : (
+                    <span className="inv-status-pill is-muted">—</span>
+                  )}
+                </td>
+                <td>{u.linked_at ? new Date(u.linked_at).toLocaleDateString("en-IN") : "—"}</td>
+                <td className="inv-col-actions">
                   <Link href={`/admin/inventory/scan?code=${encodeURIComponent(u.code)}`}>View</Link>
+                  {u.status === "unassigned" && !u.is_linked ?
+                    <button type="button" className="inv-text-btn is-danger" onClick={() => removeUnusedCode(u)}>
+                      Delete
+                    </button>
+                  : null}
                 </td>
               </tr>
             ))}

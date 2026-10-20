@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { ensureLeadsTable, getPool } from "@/lib/db";
 import { lookupQrCode } from "@/lib/inventory-qr";
+import { normalizeQrCode } from "@/lib/qr-code";
 import { isStaffUser } from "@/lib/roles";
 
 async function requireStaff() {
@@ -15,7 +16,7 @@ async function requireStaff() {
 export async function GET(request) {
   const auth = await requireStaff();
   if (auth.error) return auth.error;
-  const code = new URL(request.url).searchParams.get("code");
+  const code = normalizeQrCode(new URL(request.url).searchParams.get("code"));
   if (!code) {
     return NextResponse.json({ ok: false, message: "Code is required." }, { status: 400 });
   }
@@ -31,7 +32,7 @@ export async function GET(request) {
        JOIN qr_units q ON q.product_id = m.product_id
        WHERE q.code = ?
        ORDER BY m.id DESC LIMIT 20`,
-      [String(code).trim().toUpperCase()]
+      [code]
     );
     return NextResponse.json({ ok: true, ...result, movements });
   } catch (error) {

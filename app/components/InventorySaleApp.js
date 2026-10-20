@@ -6,6 +6,7 @@ import { apiUrl } from "@/lib/basePath";
 import { showError } from "@/lib/swal";
 import InvPageShell from "@/app/components/InvPageShell";
 import InventorySaleInvoice from "./InventorySaleInvoice";
+import { saleBillFromInventorySale } from "@/lib/sale-bill";
 
 function formatMoney(n) {
   return new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(Number(n) || 0);
@@ -24,7 +25,7 @@ export default function InventorySaleApp() {
   const [completedSale, setCompletedSale] = useState(null);
 
   useEffect(() => {
-    fetch(apiUrl("/api/admin/inventory/products?for_sale=1"), { credentials: "include" })
+    fetch(apiUrl("/api/admin/inventory/products?for_sale=1&product_type=quantity"), { credentials: "include" })
       .then((r) => r.json())
       .then((j) => {
         if (j.ok) setProducts(j.products || []);
@@ -127,7 +128,28 @@ export default function InventorySaleApp() {
       <div className="inventory-app">
         <InventorySaleInvoice sale={completedSale} />
         <div className="inventory-sale-done-actions">
-          <button type="button" className="admin-btn" onClick={() => window.print()}>
+          <button
+            type="button"
+            className="admin-btn"
+            onClick={() => {
+              const bill = saleBillFromInventorySale(completedSale);
+              if (!bill) return;
+              import("./exportSaleBillPdf").then(({ downloadSaleBillPdf }) => {
+                downloadSaleBillPdf(bill);
+              });
+            }}
+          >
+            Download PDF
+          </button>
+          <button
+            type="button"
+            className="admin-btn admin-btn-secondary"
+            onClick={() => {
+              document.body.classList.add("is-printing-sale-bill");
+              window.print();
+              window.setTimeout(() => document.body.classList.remove("is-printing-sale-bill"), 400);
+            }}
+          >
             Print invoice
           </button>
           <Link href="/admin/inventory/sales/new" className="admin-btn admin-btn-secondary">
@@ -142,7 +164,7 @@ export default function InventorySaleApp() {
   }
 
   return (
-    <InvPageShell title="New sale" subtitle="Stock and Daily Accounts update automatically when you complete a sale.">
+    <InvPageShell title="New sale" subtitle="Quantity items only. Serialized QR products are sold from Scan.">
       <div className="inventory-sale-layout">
         <section className="admin-card inventory-sale-picker">
           <input

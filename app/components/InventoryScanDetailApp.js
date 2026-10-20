@@ -2,11 +2,16 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import InvPageShell from "@/app/components/InvPageShell";
 import QrCodeScanner from "@/app/components/QrCodeScanner";
-import { apiUrl } from "@/lib/basePath";
+import SaleBillSheet from "@/app/components/SaleBillSheet";
+import { apiUrl, productImageSrc } from "@/lib/basePath";
+import { formatAdminDateFromIso } from "@/lib/format";
+import { normalizeQrCode } from "@/lib/qr-code";
+import { saleBillFromInventorySale } from "@/lib/sale-bill";
 import { confirmAction, showError, showSuccess } from "@/lib/swal";
+import { formatWarrantyUntilLabel } from "@/lib/warranty";
 
 function formatMoney(n) {
   return new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(Number(n) || 0);
@@ -14,7 +19,7 @@ function formatMoney(n) {
 
 export default function InventoryScanDetailApp() {
   const searchParams = useSearchParams();
-  const initialCode = searchParams.get("code") || "";
+  const initialCode = normalizeQrCode(searchParams.get("code") || "");
   const [code, setCode] = useState(initialCode);
   const [data, setData] = useState(null);
   const [useCamera, setUseCamera] = useState(false);
@@ -32,11 +37,12 @@ export default function InventoryScanDetailApp() {
     payment_method: "cash",
   });
   const [busy, setBusy] = useState(false);
+  const [completedSale, setCompletedSale] = useState(null);
 
   const load = useCallback(async (c) => {
-    const raw = String(c || "").trim();
+    const raw = normalizeQrCode(c);
     if (!raw) return;
-    setCode(raw.toUpperCase());
+    setCode(raw);
     const res = await fetch(apiUrl(`/api/admin/inventory/qr/lookup?code=${encodeURIComponent(raw)}`), {
       credentials: "include",
     });
@@ -83,6 +89,7 @@ export default function InventoryScanDetailApp() {
       }
       showSuccess("Sale recorded.");
       setFinanceOpen(false);
+      setCompletedSale(json.sale || null);
       load(code);
     } finally {
       setBusy(false);
@@ -106,24 +113,42 @@ export default function InventoryScanDetailApp() {
         return;
       }
       showSuccess(restock ? "Unit restocked." : "Unit voided.");
+      setCompletedSale(null);
       load(code);
     } finally {
       setBusy(false);
     }
   }
 
+  function downloadBill() {
+    if (!completedSale) return;
+    const bill = saleBillFromInventorySale(completedSale);
+    if (!bill) return;
+    import("./exportSaleBillPdf").then(({ downloadSaleBillPdf }) => {
+      downloadSaleBillPdf(bill);
+    });
+  }
+
+  function printBill() {
+    if (!completedSale) return;
+    document.body.classList.add("is-printing-sale-bill");
+    window.print();
+    window.setTimeout(() => document.body.classList.remove("is-printing-sale-bill"), 400);
+  }
+
   const unit = data?.unit;
   const product = data?.product;
   const actions = data?.actions;
+  const saleBill = useMemo(() => saleBillFromInventorySale(completedSale), [completedSale]);
 
   return (
-    <InvPageShell title="Scan product" subtitle="Scan any sticker to view details, sell, or return.">
+    <InvPageShell title="Scan product" subtitle="Scan any sticker to view details, sell, or print the customer bill.">
       <div className="inv-scan-detail-page">
       <section className="admin-card inv-scan-panel">
         <div className="inv-scan-code-row">
           <input
             value={code}
-            onChange={(e) => setCode(e.target.value.toUpperCase())}
+            onChange={(e) => setCode(normalizeQrCode(e.target.value))}
             placeholder="GMP-000125"
             onKeyDown={(e) => e.key === "Enter" && load(code)}
           />
@@ -154,26 +179,75 @@ export default function InventoryScanDetailApp() {
           {product ?
             <>
               {product.image_url ?
-                <img src={product.image_url} alt="" className="inv-scan-detail-img" />
+                <img src={productImageSrc(product.image_url)} alt="" className="inv-scan-detail-img" />
               : null}
               <h2>{product.name}</h2>
               <p>
                 {product.category_name}
                 {product.brand ? ` · ${product.brand}` : ""}
               </p>
-              <p>
-                SKU {product.sku || "—"} · Stock {product.qty_on_hand}
-              </p>
-              <p className="inv-scan-prices">
-                MRP ₹{formatMoney(product.mrp)} · Sell ₹{formatMoney(product.selling_price)}
-              </p>
-              {unit.warranty_expires_at ?
-                <p>Warranty until {unit.warranty_expires_at}</p>
+              <p className="inv-scan-price-main">Sell ₹{formatMoney(product.selling_price)}</p>
+              <p className="inv-scan-prices">MRP ₹{formatMoney(product.mrp)}</p>
+              <dl className="inv-scan-detail-meta">
+                <div>
+                  <dt>SKU</dt>
+                  <dd>{product.sku || "—"}</dd>
+                </div>
+                <div>
+                  <dt>Stock</dt>
+                  <dd>{product.qty_on_hand}</dd>
+                </div>
+                <div>
+                  <dt>Serial</dt>
+                  <dd>{unit.serial_number || "—"}</dd>
+                </div>
+                <div>
+                  <dt>Made in</dt>
+                  <dd>
+                    {unit.made_in_date
+                      ? formatAdminDateFromIso(unit.made_in_date, {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })
+                      : "—"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Warranty</dt>
+                  <dd>
+                    {unit.warranty_expires_at
+                      ? `${unit.warranty_months ? `${unit.warranty_months} mo · ` : ""}till ${formatWarrantyUntilLabel(unit.warranty_expires_at)}`
+                      : product.warranty_text || "—"}
+                  </dd>
+                </div>
+              </dl>
+              {product.warranty_text && unit.warranty_expires_at ?
+                <p className="inv-scan-warranty-text">{product.warranty_text}</p>
               : null}
             </>
           : (
             <p className="admin-empty">Sticker not linked to a product yet.</p>
           )}
+
+          {actions?.can_sell ?
+            <div className="inv-scan-customer-fields">
+              <label>
+                Customer name
+                <input
+                  value={saleForm.customer_name}
+                  onChange={(e) => setSaleForm({ ...saleForm, customer_name: e.target.value })}
+                />
+              </label>
+              <label>
+                Customer phone
+                <input
+                  value={saleForm.customer_phone}
+                  onChange={(e) => setSaleForm({ ...saleForm, customer_phone: e.target.value })}
+                />
+              </label>
+            </div>
+          : null}
 
           <div className="inv-scan-actions">
             {actions?.can_link ?
@@ -258,6 +332,21 @@ export default function InventoryScanDetailApp() {
                 Confirm finance sale
               </button>
             </form>
+          : null}
+
+          {saleBill ?
+            <section className="inv-scan-invoice">
+              <h3>Customer invoice</h3>
+              <SaleBillSheet bill={saleBill} />
+              <div className="inventory-sale-done-actions">
+                <button type="button" className="admin-btn" onClick={downloadBill}>
+                  Download PDF
+                </button>
+                <button type="button" className="admin-btn admin-btn-secondary" onClick={printBill}>
+                  Print
+                </button>
+              </div>
+            </section>
           : null}
 
           {data?.movements?.length ?

@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { ensureLeadsTable, getPool } from "@/lib/db";
 import { formatProductRow, validateProductInput } from "@/lib/inventory";
+import { deleteMediaKey } from "@/lib/media-storage.js";
+import { applyProductImageFields } from "@/lib/product-image-upload.js";
 import { isStaffUser } from "@/lib/roles";
 
 async function requireStaff() {
@@ -55,16 +57,30 @@ export async function PATCH(request, { params }) {
   const values = [];
   for (const [key, val] of Object.entries(d)) {
     if (val === undefined) continue;
+    if (key === "image_storage_key") continue;
     fields.push(`${key} = ?`);
     values.push(val);
   }
-  if (!fields.length) {
-    return NextResponse.json({ ok: false, message: "Nothing to update." }, { status: 400 });
-  }
-  values.push(id);
   try {
     await ensureLeadsTable();
     const db = getPool();
+    const existing = await loadProduct(db, id);
+    if (!existing) return NextResponse.json({ ok: false, message: "Not found." }, { status: 404 });
+
+    const imageApply = await applyProductImageFields(body, id, existing.image_storage_key || null);
+    if (imageApply.error) {
+      return NextResponse.json({ ok: false, message: imageApply.error }, { status: 400 });
+    }
+    if (imageApply.image_storage_key !== undefined) {
+      fields.push("image_storage_key = ?");
+      values.push(imageApply.image_storage_key);
+    }
+
+    if (!fields.length) {
+      return NextResponse.json({ ok: false, message: "Nothing to update." }, { status: 400 });
+    }
+    values.push(id);
+
     await db.execute(`UPDATE products SET ${fields.join(", ")} WHERE id = ?`, values);
     const row = await loadProduct(db, id);
     if (!row) return NextResponse.json({ ok: false, message: "Not found." }, { status: 404 });
@@ -87,7 +103,14 @@ export async function DELETE(_request, { params }) {
   try {
     await ensureLeadsTable();
     const db = getPool();
-    await db.execute("UPDATE products SET status = 'inactive' WHERE id = ?", [id]);
+    const row = await loadProduct(db, id);
+    if (row?.image_storage_key) {
+      await deleteMediaKey(row.image_storage_key);
+    }
+    await db.execute(
+      "UPDATE products SET status = 'inactive', image_storage_key = NULL WHERE id = ?",
+      [id]
+    );
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error(error);

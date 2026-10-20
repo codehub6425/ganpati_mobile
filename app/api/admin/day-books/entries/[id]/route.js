@@ -109,7 +109,7 @@ export async function PATCH(request, { params }) {
        SET category = ?, amount = ?, transfer_amount = ?, mt_subtype = ?, provider = ?,
            description = ?, payment_method = ?, lead_id = ?, customer_phone = ?, device_brand = ?,
            payment_flow = ?, commission_amount = ?, commission_manual = ?,
-           warranty_months = ?, warranty_until = ?
+           warranty_months = ?, warranty_until = ?, serial_number = ?, made_in_date = ?, invoice_no = ?
        WHERE id = ?`,
       [
         e.category,
@@ -127,6 +127,9 @@ export async function PATCH(request, { params }) {
         commission_manual,
         e.warranty_months,
         warranty_until,
+        e.serial_number,
+        e.made_in_date,
+        e.invoice_no || existing.invoice_no || null,
         entryId,
       ]
     );

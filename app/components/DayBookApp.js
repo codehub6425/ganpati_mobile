@@ -33,13 +33,40 @@ import {
   formatWarrantyUntilLabel,
   WARRANTY_MONTH_CHOICES,
 } from "@/lib/warranty";
+import {
+  formatInvoiceNo,
+  relatedSaleEntries,
+  saleBillFromEntries,
+} from "@/lib/sale-bill";
 import { confirmAction, showError, showSuccess } from "@/lib/swal";
 import DateRangeFilter from "./DateRangeFilter";
 import LeadPicker from "./LeadPicker";
 import LedgerEntryActions from "./LedgerEntryActions";
+import QrCodeScanner from "./QrCodeScanner";
+import SaleBillSheet from "./SaleBillSheet";
 import WhatsappBrandIcon from "./WhatsappBrandIcon";
+import { normalizeQrCode } from "@/lib/qr-code";
 
 const CUSTOMER_LINK_CATEGORIES = ["recharge", "money_transfer", "accessory", "repair"];
+
+function defaultAccessoryLine() {
+  return {
+    description: "",
+    amount: "",
+    serial_number: "",
+    has_serial: false,
+    made_in_date: "",
+    has_made_in: false,
+    has_warranty: false,
+    warranty_months: "24",
+    product_id: null,
+    product_type: "",
+    qty_on_hand: 0,
+    qr_code: "",
+    save_product: false,
+    source: "",
+  };
+}
 
 const EMPTY_FORM = {
   amount: "",
@@ -58,7 +85,7 @@ const EMPTY_FORM = {
   payment_flow: "given",
   commission_amount: "",
   commission_manual: false,
-  accessory_lines: [{ description: "", amount: "", has_warranty: false, warranty_months: "24" }],
+  accessory_lines: [defaultAccessoryLine()],
 };
 
 function accessoryLinesTotal(lines) {
@@ -77,19 +104,129 @@ function repairBillLineDescription(form) {
   return brand || detail || "Repair";
 }
 
+function parseWarrantyMonthsFromText(text) {
+  const raw = String(text || "").trim().toLowerCase();
+  if (!raw) return "";
+  const year = raw.match(/(\d+)\s*(years?|yrs?|y)\b/);
+  if (year) {
+    const months = Number(year[1]) * 12;
+    return WARRANTY_MONTH_CHOICES.includes(months) ? String(months) : String(Math.min(60, months));
+  }
+  const month = raw.match(/(\d+)/);
+  if (!month) return "";
+  const months = Number(month[1]);
+  return WARRANTY_MONTH_CHOICES.includes(months) ? String(months) : String(months);
+}
+
+function accessoryLineFromProduct(product, extras = {}) {
+  const warrantyMonths =
+    extras.warranty_months != null && extras.warranty_months !== "" ?
+      String(extras.warranty_months)
+    : parseWarrantyMonthsFromText(product?.warranty_text);
+  const amount =
+    extras.amount != null && extras.amount !== "" ?
+      String(extras.amount)
+    : product?.selling_price != null && Number(product.selling_price) >= 0 ?
+      String(Math.round(Number(product.selling_price)))
+    : "";
+  return {
+    ...defaultAccessoryLine(),
+    description: String(product?.name || "").trim(),
+    amount,
+    product_id: product?.id || null,
+    product_type: product?.product_type || "quantity",
+    qty_on_hand: Number(product?.qty_on_hand) || 0,
+    qr_code: extras.qr_code || "",
+    save_product: false,
+    source: extras.source || "catalog",
+    serial_number: extras.serial_number || "",
+    has_serial: Boolean(extras.serial_number),
+    made_in_date: extras.made_in_date || "",
+    has_made_in: Boolean(extras.made_in_date),
+    has_warranty: Boolean(warrantyMonths),
+    warranty_months: warrantyMonths || "24",
+  };
+}
+
 function normalizeAccessoryLines(lines) {
   return (lines || [])
     .map((row) => ({
       description: String(row.description || "").trim(),
       amount: String(row.amount ?? "").trim(),
+      serial_number: String(row.serial_number || "").trim(),
+      has_serial: Boolean(row.has_serial || row.serial_number),
+      made_in_date: String(row.made_in_date || "").trim().slice(0, 10),
+      has_made_in: Boolean(row.has_made_in || row.made_in_date),
       has_warranty: Boolean(row.has_warranty),
       warranty_months: String(row.warranty_months ?? "24"),
+      product_id: row.product_id ? Number(row.product_id) : null,
+      product_type: String(row.product_type || "").trim(),
+      qty_on_hand: Number(row.qty_on_hand) || 0,
+      qr_code: normalizeQrCode(row.qr_code || ""),
+      save_product: Boolean(row.save_product),
+      source: String(row.source || "").trim(),
     }))
     .filter((row) => row.description || row.amount);
 }
 
-function defaultAccessoryLine() {
-  return { description: "", amount: "", has_warranty: false, warranty_months: "24" };
+async function ensureAccessoryCategoryId() {
+  const res = await fetch(apiUrl("/api/admin/inventory/categories"), { credentials: "include" });
+  const data = await res.json().catch(() => ({}));
+  const cats = data.categories || [];
+  const found = cats.find((c) => /accessor/i.test(`${c.name || ""} ${c.slug || ""}`)) || cats[0];
+  if (found?.id) return found.id;
+  const create = await fetch(apiUrl("/api/admin/inventory/categories"), {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: "Accessories" }),
+  });
+  const created = await create.json().catch(() => ({}));
+  return created.id || null;
+}
+
+async function saveNewCatalogProduct(line) {
+  const categoryId = await ensureAccessoryCategoryId();
+  if (!categoryId) return { error: "Add a product category in Inventory first." };
+  const price = Number(line.amount) || 0;
+  const res = await fetch(apiUrl("/api/admin/inventory/products"), {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      category_id: categoryId,
+      name: line.description,
+      purchase_price: 0,
+      mrp: price,
+      selling_price: price,
+      product_type: "quantity",
+      qty_on_hand: 0,
+      warranty_text:
+        line.has_warranty && line.warranty_months ? `${line.warranty_months} months` : null,
+    }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) return { error: data.message || "Could not save product." };
+  return { product: data.product };
+}
+
+function entryFromInventorySale(sale, line) {
+  const saleLine = sale?.lines?.[0] || {};
+  return {
+    id: sale?.ledger_entry_id,
+    invoice_no: sale?.invoice_no,
+    description: line.description,
+    amount: Number(line.amount) || Number(saleLine.line_total) || 0,
+    created_at: sale?.created_at,
+    created_by_name: sale?.created_by_name,
+    serial_number: line.has_serial ? line.serial_number : saleLine.serial_number,
+    made_in_date: line.has_made_in ? line.made_in_date : saleLine.made_in_date,
+    warranty_months: line.has_warranty ? line.warranty_months : saleLine.warranty_months,
+    warranty_until:
+      line.has_warranty && line.warranty_months ?
+        computeWarrantyUntil(sale?.sale_date, line.warranty_months)
+      : saleLine.warranty_expires_at,
+  };
 }
 
 const SUMMARY_META = {
@@ -109,7 +246,7 @@ const MT_SUBTYPE_LABELS = {
 const SIMPLE_ADD_HINT = {
   recharge: "Amount and provider.",
   money_transfer: "Pick type, then enter amount.",
-  accessory: "Enter sale amount and item name.",
+  accessory: "Scan, search, or type a new item. Tick Save product to keep new items for next time.",
   repair: "Amount, mobile brand, and repair details.",
   payment: "Enter expense amount and what it was for.",
 };
@@ -399,6 +536,67 @@ function LedgerSortHeader({ label, column, sortKey, sortDir, onSort }) {
   );
 }
 
+function LedgerClampText({ text, label }) {
+  const value = String(text || "").trim() || "—";
+  const textRef = useRef(null);
+  const boxRef = useRef(null);
+  const [overflows, setOverflows] = useState(false);
+  const [open, setOpen] = useState(false);
+
+  useLayoutEffect(() => {
+    const el = textRef.current;
+    if (!el || value === "—") {
+      setOverflows(false);
+      return;
+    }
+    setOverflows(el.scrollWidth > el.clientWidth + 1);
+  }, [value]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    function onDoc(event) {
+      if (boxRef.current && !boxRef.current.contains(event.target)) {
+        setOpen(false);
+      }
+    }
+    function onKey(event) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  if (value === "—") return "—";
+
+  return (
+    <div className={`ledger-clamp${open ? " is-open" : ""}`} ref={boxRef}>
+      <button
+        type="button"
+        className="ledger-clamp-btn"
+        onClick={() => {
+          if (overflows) setOpen((v) => !v);
+        }}
+        aria-expanded={overflows ? open : undefined}
+        aria-label={overflows ? `Show full ${label || "text"}` : undefined}
+        title={overflows && !open ? value : undefined}
+      >
+        <span className="ledger-clamp-text" ref={textRef}>
+          {value}
+        </span>
+      </button>
+      {open ?
+        <div className="ledger-clamp-pop" role="tooltip">
+          {value}
+        </div>
+      : null}
+    </div>
+  );
+}
+
 function customerEntrySuffix(entry) {
   if (entry.customer_name && entry.customer_phone) {
     return `${entry.customer_name} · ${entry.customer_phone}`;
@@ -475,6 +673,8 @@ function entryNote(entry) {
     parts.push(entry.description);
   }
   if (entry.payment_method) parts.push(entry.payment_method.toUpperCase());
+  if (entry.serial_number) parts.push(`SN ${entry.serial_number}`);
+  if (entry.made_in_date) parts.push(`Made in ${formatAdminDateFromIso(entry.made_in_date, { day: "numeric", month: "short", year: "numeric" })}`);
   if (entry.warranty_until) {
     parts.push(`Warranty till ${formatWarrantyUntilLabel(entry.warranty_until)}`);
   } else if (entry.warranty_months) {
@@ -491,9 +691,31 @@ function LedgerInlineSpinner({ size = 18 }) {
 }
 
 function AccessoryLinesEditor({ lines, onChange, suggestions, compact, error, saleDateIso }) {
-  const listId = useId();
   const picks = suggestions.slice(0, compact ? 4 : 8);
   const total = accessoryLinesTotal(lines);
+  const [catalog, setCatalog] = useState([]);
+  const [scanOpen, setScanOpen] = useState(false);
+  const [scanTarget, setScanTarget] = useState(0);
+  const [manualCode, setManualCode] = useState("");
+  const [scanBusy, setScanBusy] = useState(false);
+  const [activeSearch, setActiveSearch] = useState(null);
+  const lastScanRef = useRef("");
+  const linesRef = useRef(lines);
+  const scanTargetRef = useRef(0);
+  linesRef.current = lines;
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(apiUrl("/api/admin/inventory/products?status=active"), { credentials: "include" })
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled && data.ok) setCatalog(data.products || []);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function updateLine(index, patch) {
     onChange(lines.map((row, i) => (i === index ? { ...row, ...patch } : row)));
@@ -511,6 +733,111 @@ function AccessoryLinesEditor({ lines, onChange, suggestions, compact, error, sa
     onChange(lines.filter((_, i) => i !== index));
   }
 
+  function targetLineIndex() {
+    const empty = lines.findIndex((row) => !String(row.description || "").trim() && !row.qr_code);
+    return empty >= 0 ? empty : lines.length;
+  }
+
+  function applyLineAt(index, nextLine) {
+    if (index >= lines.length) {
+      onChange([...lines, nextLine]);
+      return;
+    }
+    onChange(lines.map((row, i) => (i === index ? nextLine : row)));
+  }
+
+  function selectProduct(index, product) {
+    applyLineAt(index, accessoryLineFromProduct(product, { source: "catalog" }));
+    setActiveSearch(null);
+  }
+
+  function onDescriptionChange(index, value) {
+    const exact = catalog.find((p) => p.name.toLowerCase() === value.trim().toLowerCase());
+    if (exact) {
+      selectProduct(index, exact);
+      return;
+    }
+    updateLine(index, {
+      description: value,
+      product_id: null,
+      product_type: "",
+      qty_on_hand: 0,
+      qr_code: "",
+      source: value.trim() ? "new" : "",
+    });
+    setActiveSearch(index);
+  }
+
+  const applyScannedCode = useCallback(async (raw, index) => {
+    const code = normalizeQrCode(raw);
+    if (!code) return;
+    if (code === lastScanRef.current) return;
+    const current = linesRef.current;
+    const target = Number.isInteger(index) ? index : scanTargetRef.current;
+    if (current.some((row, i) => i !== target && normalizeQrCode(row.qr_code) === code)) {
+      showError("This QR is already on another line.");
+      return;
+    }
+    lastScanRef.current = code;
+    setScanBusy(true);
+    try {
+      const res = await fetch(apiUrl(`/api/admin/inventory/qr/lookup?code=${encodeURIComponent(code)}`), {
+        credentials: "include",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.unit) {
+        lastScanRef.current = "";
+        showError(data.message || "QR code not found.");
+        return;
+      }
+      if (data.unit.status === "sold") {
+        lastScanRef.current = "";
+        showError(`${data.product?.name || data.unit.code} is already sold.`);
+        return;
+      }
+      if (data.unit.status !== "in_stock" || !data.product) {
+        lastScanRef.current = "";
+        showError("Link this QR to a product in Inventory first, then sell here.");
+        return;
+      }
+      const nextLine = accessoryLineFromProduct(data.product, {
+        source: "scan",
+        qr_code: data.unit.code,
+        serial_number: data.unit.serial_number || "",
+        made_in_date: data.unit.made_in_date || "",
+        warranty_months: data.unit.warranty_months || parseWarrantyMonthsFromText(data.product.warranty_text),
+      });
+      if (target >= current.length) {
+        onChange([...current, nextLine]);
+      } else {
+        onChange(current.map((row, i) => (i === target ? nextLine : row)));
+      }
+      setScanOpen(false);
+      setManualCode("");
+      setActiveSearch(null);
+      showSuccess(`${data.product.name} ready to sell.`);
+    } catch {
+      lastScanRef.current = "";
+      showError("Could not read this QR. Try again.");
+    } finally {
+      setScanBusy(false);
+    }
+  }, [onChange]);
+
+  const applyScanRef = useRef(applyScannedCode);
+  applyScanRef.current = applyScannedCode;
+  const onCameraScan = useCallback((text) => {
+    applyScanRef.current(text);
+  }, []);
+
+  function openScan(index) {
+    lastScanRef.current = "";
+    scanTargetRef.current = index;
+    setScanTarget(index);
+    setManualCode("");
+    setScanOpen(true);
+  }
+
   return (
     <div className={`ledger-accessory-lines${error ? " has-error" : ""}`}>
       <div className="ledger-accessory-lines-head">
@@ -519,11 +846,47 @@ function AccessoryLinesEditor({ lines, onChange, suggestions, compact, error, sa
           <span className="ledger-accessory-lines-total">Total ₹{formatMoney(total)}</span>
         : null}
       </div>
-      <datalist id={listId}>
-        {suggestions.map((item) => (
-          <option key={item} value={item} />
-        ))}
-      </datalist>
+      <div className="ledger-accessory-actions">
+        <button
+          type="button"
+          className={`ledger-accessory-action${scanOpen ? " is-active" : ""}`}
+          onClick={() => (scanOpen ? setScanOpen(false) : openScan(targetLineIndex()))}
+        >
+          {scanOpen ? "Close scanner" : "Scan product"}
+        </button>
+      </div>
+      {scanOpen ?
+        <div className="ledger-accessory-scan">
+          <p className="ledger-accessory-scan-title">Scan or enter the product QR</p>
+          <div className="ledger-accessory-scan-manual">
+            <input
+              type="text"
+              placeholder="Type / paste QR code"
+              value={manualCode}
+              onChange={(e) => setManualCode(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  applyScannedCode(manualCode, scanTarget);
+                }
+              }}
+            />
+            <button
+              type="button"
+              className="ledger-accessory-action"
+              disabled={scanBusy || !manualCode.trim()}
+              onClick={() => applyScannedCode(manualCode, scanTarget)}
+            >
+              {scanBusy ? "Finding…" : "Find"}
+            </button>
+          </div>
+          <QrCodeScanner
+            active={scanOpen && !scanBusy}
+            onScan={onCameraScan}
+          />
+        </div>
+      : null}
       <ul className="ledger-accessory-line-list">
         {lines.map((line, index) => {
           const warrantyMonths = line.has_warranty ? Number(line.warranty_months) : 0;
@@ -531,17 +894,59 @@ function AccessoryLinesEditor({ lines, onChange, suggestions, compact, error, sa
             line.has_warranty && saleDateIso && warrantyMonths > 0 ?
               computeWarrantyUntil(saleDateIso, warrantyMonths)
             : null;
+          const query = String(line.description || "").trim().toLowerCase();
+          const matches =
+            activeSearch === index && query ?
+              catalog
+                .filter(
+                  (p) =>
+                    p.name.toLowerCase().includes(query) ||
+                    (p.brand && p.brand.toLowerCase().includes(query)) ||
+                    (p.sku && p.sku.toLowerCase().includes(query))
+                )
+                .slice(0, 8)
+            : [];
+          const isNewProduct = Boolean(query) && !line.product_id && !line.qr_code;
           return (
             <li key={index} className="ledger-accessory-line-wrap">
               <div className="ledger-accessory-line">
-                <input
-                  type="text"
-                  list={listId}
-                  placeholder="e.g. Charger"
-                  value={line.description}
-                  aria-label={`Item ${index + 1} name`}
-                  onChange={(e) => updateLine(index, { description: e.target.value })}
-                />
+                <div className="ledger-accessory-search">
+                  <input
+                    type="text"
+                    autoComplete="off"
+                    placeholder="Search or type product name"
+                    value={line.description}
+                    aria-label={`Item ${index + 1} name`}
+                    onFocus={() => setActiveSearch(index)}
+                    onChange={(e) => onDescriptionChange(index, e.target.value)}
+                  />
+                  {matches.length > 0 ?
+                    <ul className="ledger-accessory-results" role="listbox">
+                      {matches.map((product) => (
+                        <li key={product.id}>
+                          <button
+                            type="button"
+                            className="ledger-accessory-result"
+                            onClick={() => selectProduct(index, product)}
+                          >
+                            <span>
+                              {product.name}
+                              {product.brand ? ` · ${product.brand}` : ""}
+                            </span>
+                            <span className="ledger-accessory-result-meta">
+                              ₹{formatMoney(product.selling_price)}
+                              {product.product_type === "serialized" ?
+                                " · scan QR"
+                              : product.qty_on_hand > 0 ?
+                                ` · ${product.qty_on_hand} in shop`
+                              : " · new sale"}
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  : null}
+                </div>
                 <input
                   type="number"
                   min="0"
@@ -550,6 +955,7 @@ function AccessoryLinesEditor({ lines, onChange, suggestions, compact, error, sa
                   placeholder="₹"
                   value={line.amount}
                   aria-label={`Item ${index + 1} amount`}
+                  onFocus={() => setActiveSearch(null)}
                   onChange={(e) => updateLine(index, { amount: e.target.value.replace(/[^\d.]/g, "") })}
                 />
                 <button
@@ -561,7 +967,72 @@ function AccessoryLinesEditor({ lines, onChange, suggestions, compact, error, sa
                   ×
                 </button>
               </div>
-              <div className="ledger-accessory-warranty">
+              {line.qr_code || line.product_id ?
+                <div className="ledger-accessory-picked">
+                  {line.qr_code ?
+                    <span className="ledger-accessory-pill is-scan">Scanned {line.qr_code}</span>
+                  : line.product_type === "serialized" ?
+                    <span className="ledger-accessory-pill">Catalog · scan QR to take stock</span>
+                  : line.qty_on_hand > 0 ?
+                    <span className="ledger-accessory-pill">{line.qty_on_hand} in shop</span>
+                  : <span className="ledger-accessory-pill">Saved product</span>}
+                  <button
+                    type="button"
+                    className="ledger-accessory-add-line"
+                    onClick={() => openScan(index)}
+                  >
+                    Scan QR
+                  </button>
+                </div>
+              : isNewProduct ?
+                <div className="ledger-accessory-picked">
+                  <span className="ledger-accessory-new-hint">New product — enter amount and sell.</span>
+                  <label className="ledger-accessory-warranty-check">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(line.save_product)}
+                      onChange={(e) => updateLine(index, { save_product: e.target.checked })}
+                    />
+                    <span>Save this product</span>
+                  </label>
+                  <button
+                    type="button"
+                    className="ledger-accessory-add-line"
+                    onClick={() => openScan(index)}
+                  >
+                    Scan instead
+                  </button>
+                </div>
+              : <div className="ledger-accessory-picked">
+                  <span className="ledger-accessory-new-hint">Type a name to search, or scan the sticker.</span>
+                </div>}
+              <div className="ledger-accessory-options" role="group" aria-label={`Optional details for item ${index + 1}`}>
+                <label className="ledger-accessory-warranty-check">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(line.has_serial)}
+                    onChange={(e) =>
+                      updateLine(index, {
+                        has_serial: e.target.checked,
+                        serial_number: e.target.checked ? line.serial_number : "",
+                      })
+                    }
+                  />
+                  <span>Serial no.</span>
+                </label>
+                <label className="ledger-accessory-warranty-check">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(line.has_made_in)}
+                    onChange={(e) =>
+                      updateLine(index, {
+                        has_made_in: e.target.checked,
+                        made_in_date: e.target.checked ? line.made_in_date : "",
+                      })
+                    }
+                  />
+                  <span>Made-in date</span>
+                </label>
                 <label className="ledger-accessory-warranty-check">
                   <input
                     type="checkbox"
@@ -570,28 +1041,50 @@ function AccessoryLinesEditor({ lines, onChange, suggestions, compact, error, sa
                   />
                   <span>Warranty</span>
                 </label>
-                {line.has_warranty ?
-                  <>
-                    <select
-                      className="ledger-accessory-warranty-months"
-                      value={line.warranty_months || "24"}
-                      aria-label={`Item ${index + 1} warranty months`}
-                      onChange={(e) => updateLine(index, { warranty_months: e.target.value })}
-                    >
-                      {WARRANTY_MONTH_CHOICES.map((m) => (
-                        <option key={m} value={String(m)}>
-                          {m} months
-                        </option>
-                      ))}
-                    </select>
-                    {warrantyUntil ?
-                      <span className="ledger-accessory-warranty-until">
-                        Valid till {formatWarrantyUntilLabel(warrantyUntil)}
-                      </span>
-                    : null}
-                  </>
-                : null}
               </div>
+              {line.has_serial ?
+                <input
+                  className="ledger-accessory-serial"
+                  type="text"
+                  maxLength={80}
+                  placeholder="Enter serial number"
+                  value={line.serial_number || ""}
+                  aria-label={`Item ${index + 1} serial number`}
+                  onChange={(e) => updateLine(index, { serial_number: e.target.value })}
+                />
+              : null}
+              {line.has_made_in ?
+                <label className="ledger-accessory-date-field">
+                  <span>Made-in date</span>
+                  <input
+                    type="date"
+                    value={line.made_in_date || ""}
+                    aria-label={`Item ${index + 1} made-in date`}
+                    onChange={(e) => updateLine(index, { made_in_date: e.target.value })}
+                  />
+                </label>
+              : null}
+              {line.has_warranty ?
+                <div className="ledger-accessory-warranty">
+                  <select
+                    className="ledger-accessory-warranty-months"
+                    value={line.warranty_months || "24"}
+                    aria-label={`Item ${index + 1} warranty months`}
+                    onChange={(e) => updateLine(index, { warranty_months: e.target.value })}
+                  >
+                    {WARRANTY_MONTH_CHOICES.map((m) => (
+                      <option key={m} value={String(m)}>
+                        {m} months
+                      </option>
+                    ))}
+                  </select>
+                  {warrantyUntil ?
+                    <span className="ledger-accessory-warranty-until">
+                      Valid till {formatWarrantyUntilLabel(warrantyUntil)}
+                    </span>
+                  : null}
+                </div>
+              : null}
             </li>
           );
         })}
@@ -604,12 +1097,16 @@ function AccessoryLinesEditor({ lines, onChange, suggestions, compact, error, sa
               type="button"
               className="ledger-item-pick"
               onClick={() => {
+                const catalogMatch = catalog.find((p) => p.name.toLowerCase() === item.toLowerCase());
                 const emptyIndex = lines.findIndex((row) => !row.description.trim());
-                if (emptyIndex >= 0) {
-                  updateLine(emptyIndex, { description: item });
-                } else {
-                  onChange([...lines, { ...defaultAccessoryLine(), description: item }]);
+                const index = emptyIndex >= 0 ? emptyIndex : lines.length;
+                if (catalogMatch) {
+                  selectProduct(index, catalogMatch);
+                  return;
                 }
+                const next = { ...defaultAccessoryLine(), description: item, source: "new" };
+                if (emptyIndex >= 0) updateLine(emptyIndex, next);
+                else onChange([...lines, next]);
               }}
             >
               {item}
@@ -1023,7 +1520,7 @@ function LedgerDateRangeControl({ canPickDates, dateFrom, dateTo, onChange }) {
   );
 }
 
-export default function DayBookApp({ userRole = "staff", allowPastDaybooks = false }) {
+export default function DayBookApp({ userRole = "staff", userName = "", allowPastDaybooks = false }) {
   const isAdmin = userRole === "admin";
   const canPickDates = isAdmin || allowPastDaybooks;
   const [dateFrom, setDateFrom] = useState(todayDateString());
@@ -1059,11 +1556,12 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
   const [rangePickerOpen, setRangePickerOpen] = useState(false);
   const [whatsappConnected, setWhatsappConnected] = useState(false);
   const [whatsappConfigured, setWhatsappConfigured] = useState(true);
-  const [sendWhatsappBill, setSendWhatsappBill] = useState(false);
+  const [sendWhatsappBill, setSendWhatsappBill] = useState(true);
   const [whatsappBillBusyId, setWhatsappBillBusyId] = useState(null);
   const [waLogEntry, setWaLogEntry] = useState(null);
   const [waLogEvents, setWaLogEvents] = useState([]);
   const [waLogLoading, setWaLogLoading] = useState(false);
+  const [saleBill, setSaleBill] = useState(null);
 
   const canEdit = book?.can_edit ?? false;
   const mtBreakdown = useMemo(() => computeMtBreakdown(entries), [entries]);
@@ -1197,9 +1695,8 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
     if (!addOpen || (category !== "accessory" && category !== "repair")) return undefined;
     let cancelled = false;
     (async () => {
-      const connected = await refreshWhatsappStatus();
+      await refreshWhatsappStatus();
       if (cancelled) return;
-      if (connected) setSendWhatsappBill(true);
     })();
     return () => {
       cancelled = true;
@@ -1337,7 +1834,7 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
     resetCustomerLink();
     setMtTypeError(false);
     setCommissionEditOpen(false);
-    setSendWhatsappBill(false);
+    setSendWhatsappBill(true);
     setWhatsappConnected(false);
     setAddOpen(true);
   }
@@ -1615,8 +2112,11 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
         const lines = normalizeAccessoryLines(form.accessory_lines).filter(
           (row) => row.description && row.amount !== "" && Number(row.amount) >= 0
         );
-        const savedEntryIds = [];
-        for (const line of lines) {
+        const savedEntries = [];
+        let invoiceNo = "";
+        const saveNotes = [];
+
+        const postLedgerLine = async (line) => {
           const { res, data } = await postEntry({
             date: saveDate,
             category: "accessory",
@@ -1625,37 +2125,110 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
             payment_method: form.payment_method || undefined,
             customer_phone: customerPhone,
             customer_name: customerName,
+            serial_number: line.has_serial ? line.serial_number || undefined : undefined,
+            made_in_date: line.has_made_in ? line.made_in_date || undefined : undefined,
+            invoice_no: invoiceNo || undefined,
             warranty_months:
               line.has_warranty && line.warranty_months ? line.warranty_months : undefined,
           });
-          if (!res.ok) {
-            showError(data.message || `Could not save ${line.description}.`);
+          if (!res.ok) return { error: data.message || `Could not save ${line.description}.` };
+          if (data.entry) savedEntries.push(data.entry);
+          if (!invoiceNo && data.entry?.invoice_no) invoiceNo = data.entry.invoice_no;
+          return { entry: data.entry };
+        };
+
+        for (const line of lines) {
+          if (line.save_product && !line.product_id) {
+            const saved = await saveNewCatalogProduct(line);
+            if (saved.error) {
+              saveNotes.push(`${line.description} sold, but not saved to product list: ${saved.error}`);
+            } else {
+              line.product_id = saved.product?.id || null;
+              line.product_type = saved.product?.product_type || "quantity";
+            }
+          }
+
+          if (line.qr_code) {
+            const sellRes = await fetch(apiUrl("/api/admin/inventory/qr/sell"), {
+              method: "POST",
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                code: line.qr_code,
+                sale_date: saveDate,
+                payment_method: form.payment_method || "cash",
+                customer_phone: customerPhone,
+                customer_name: customerName,
+                selling_price: Number(line.amount),
+              }),
+            });
+            const sellData = await sellRes.json().catch(() => ({}));
+            if (sellRes.ok && sellData.sale) {
+              savedEntries.push(entryFromInventorySale(sellData.sale, line));
+              if (!invoiceNo && sellData.sale.invoice_no) invoiceNo = sellData.sale.invoice_no;
+              continue;
+            }
+            saveNotes.push(sellData.message || `Could not mark ${line.description} QR as sold.`);
+          } else if (line.product_id && line.product_type === "quantity" && line.qty_on_hand > 0) {
+            const saleRes = await fetch(apiUrl("/api/admin/inventory/sales"), {
+              method: "POST",
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                sale_date: saveDate,
+                payment_method: form.payment_method || "cash",
+                customer_phone: customerPhone,
+                customer_name: customerName,
+                lines: [{
+                  product_id: line.product_id,
+                  qty: 1,
+                  line_discount: 0,
+                  unit_selling_price: Number(line.amount),
+                }],
+              }),
+            });
+            const saleData = await saleRes.json().catch(() => ({}));
+            if (saleRes.ok && saleData.sale) {
+              savedEntries.push(entryFromInventorySale(saleData.sale, line));
+              if (!invoiceNo && saleData.sale.invoice_no) invoiceNo = saleData.sale.invoice_no;
+              continue;
+            }
+          }
+
+          const posted = await postLedgerLine(line);
+          if (posted.error) {
+            showError(posted.error);
             return;
           }
-          if (data.entry?.id) savedEntryIds.push(data.entry.id);
         }
+        const savedEntryIds = savedEntries.map((row) => row.id).filter(Boolean);
         const shouldSendBill =
           sendWhatsappBill &&
           whatsappConnected &&
           customerPhone &&
           customerPhone.length === 10;
+        const billLines = lines.map((row) => ({
+          description: row.description,
+          amount: row.amount,
+          serial_number: row.has_serial ? row.serial_number || undefined : undefined,
+          made_in_date: row.has_made_in ? row.made_in_date || undefined : undefined,
+          warranty_months:
+            row.has_warranty && row.warranty_months ? row.warranty_months : undefined,
+          warranty_until:
+            row.has_warranty && saveDate && row.warranty_months ?
+              computeWarrantyUntil(saveDate, row.warranty_months)
+            : undefined,
+        }));
+        const salePayment = form.payment_method || "cash";
         const billPayload =
           shouldSendBill ?
             {
               customer_phone: customerPhone,
               customer_name: customerName,
-              payment_method: form.payment_method || undefined,
+              payment_method: salePayment,
               date: saveDate,
-              lines: lines.map((row) => ({
-                description: row.description,
-                amount: row.amount,
-                warranty_months:
-                  row.has_warranty && row.warranty_months ? row.warranty_months : undefined,
-                warranty_until:
-                  row.has_warranty && saveDate && row.warranty_months ?
-                    computeWarrantyUntil(saveDate, row.warranty_months)
-                  : undefined,
-              })),
+              invoice_no: invoiceNo || undefined,
+              lines: billLines,
               ledger_entry_ids: savedEntryIds,
             }
           : null;
@@ -1666,11 +2239,28 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
         setDateTo(saveDate);
         await loadRange(saveDate, saveDate);
         await loadSuggestions();
+        const savedTime = formatAdminTime(savedEntries[0]?.created_at);
+        setSaleBill(
+          saleBillFromEntries(savedEntries.length ? savedEntries : billLines, {
+            kind: "accessory",
+            invoiceNo,
+            date: saveDate,
+            time: savedTime && savedTime !== "—" ? savedTime : formatAdminTime(new Date()),
+            customer_name: customerName,
+            customer_phone: customerPhone,
+            payment_method: salePayment,
+            cashier: savedEntries[0]?.created_by_name || userName,
+          })
+        );
 
         if (billPayload) {
           void deliverWhatsappBillPayload(billPayload, "accessory");
         } else {
-          showSuccess("Accessory sale saved.");
+          showSuccess(
+            saveNotes.length ?
+              `Accessory sale saved. ${saveNotes.join(" ")}`
+            : "Accessory sale saved. Download or print the bill for the customer."
+          );
         }
         return;
       } else {
@@ -1705,6 +2295,20 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
 
         if (category === "repair") {
           const savedRepairId = data.entry?.id;
+          const repairInvoiceNo =
+            data.entry?.invoice_no || (savedRepairId ? formatInvoiceNo(savedRepairId) : "");
+          const repairLine = {
+            description: repairBillLineDescription(form),
+            amount: form.amount,
+            warranty_months:
+              form.repair_has_warranty && form.repair_warranty_months ?
+                form.repair_warranty_months
+              : undefined,
+            warranty_until:
+              form.repair_has_warranty && saveDate && form.repair_warranty_months ?
+                computeWarrantyUntil(saveDate, form.repair_warranty_months)
+              : undefined,
+          };
           const shouldSendBill =
             sendWhatsappBill &&
             whatsappConnected &&
@@ -1716,21 +2320,9 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
                 customer_phone: customerPhone,
                 customer_name: customerName,
                 date: saveDate,
+                invoice_no: repairInvoiceNo || undefined,
                 ledger_entry_ids: savedRepairId ? [savedRepairId] : [],
-                lines: [
-                  {
-                    description: repairBillLineDescription(form),
-                    amount: form.amount,
-                    warranty_months:
-                      form.repair_has_warranty && form.repair_warranty_months ?
-                        form.repair_warranty_months
-                      : undefined,
-                    warranty_until:
-                      form.repair_has_warranty && saveDate && form.repair_warranty_months ?
-                        computeWarrantyUntil(saveDate, form.repair_warranty_months)
-                      : undefined,
-                  },
-                ],
+                lines: [repairLine],
               }
             : null;
 
@@ -1740,11 +2332,35 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
           setDateTo(saveDate);
           await loadRange(saveDate, saveDate);
           await loadSuggestions();
+          const savedTime = formatAdminTime(data.entry?.created_at);
+          setSaleBill(
+            saleBillFromEntries(
+              [
+                {
+                  ...(data.entry || {}),
+                  description: repairLine.description,
+                  amount: repairLine.amount,
+                  warranty_months: repairLine.warranty_months,
+                  warranty_until: repairLine.warranty_until,
+                },
+              ],
+              {
+                kind: "repair",
+                invoiceNo: repairInvoiceNo,
+                date: saveDate,
+                time: savedTime && savedTime !== "—" ? savedTime : formatAdminTime(new Date()),
+                customer_name: customerName,
+                customer_phone: customerPhone,
+                payment_method: "cash",
+                cashier: data.entry?.created_by_name || userName,
+              }
+            )
+          );
 
           if (billPayload) {
             void deliverWhatsappBillPayload(billPayload, "repair");
           } else {
-            showSuccess("Repair saved.");
+            showSuccess("Repair saved. Download or print the bill for the customer.");
           }
           return;
         }
@@ -2162,30 +2778,36 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
                 </p>
               : form.customer_phone.length !== 10 ?
                 <p className="ledger-whatsapp-bill-hint">Enter the full 10-digit mobile number.</p>
-              : !whatsappConfigured ?
-                <p className="ledger-whatsapp-bill-hint">
-                  WhatsApp gateway is not configured on the server (.env).
-                </p>
-              : !whatsappConnected ?
-                <p className="ledger-whatsapp-bill-hint">
-                  Link shop WhatsApp in{" "}
-                  <Link href="/admin/settings" className="ledger-inline-link">
-                    Settings
-                  </Link>{" "}
-                  first, then tick below.
-                </p>
               : null}
-              {customerLinkMode === "customer" &&
-              form.customer_phone.length === 10 &&
-              whatsappConnected ?
-                <label className="ledger-whatsapp-bill-opt">
-                  <input
-                    type="checkbox"
-                    checked={sendWhatsappBill}
-                    onChange={(e) => setSendWhatsappBill(e.target.checked)}
-                  />
-                  <span>Send bill on WhatsApp when entry is saved</span>
-                </label>
+              {customerLinkMode === "customer" && form.customer_phone.length === 10 ?
+                <>
+                  <label className="ledger-whatsapp-bill-opt">
+                    <input
+                      type="checkbox"
+                      checked={sendWhatsappBill}
+                      onChange={(e) => setSendWhatsappBill(e.target.checked)}
+                    />
+                    <span className="ledger-whatsapp-bill-opt-copy">
+                      <span>Send bill on WhatsApp</span>
+                      <small>
+                        Customer gets a message with a link to open and download the bill.
+                      </small>
+                    </span>
+                  </label>
+                  {sendWhatsappBill && !whatsappConfigured ?
+                    <p className="ledger-whatsapp-bill-hint">
+                      WhatsApp gateway is not configured on the server (.env).
+                    </p>
+                  : sendWhatsappBill && !whatsappConnected ?
+                    <p className="ledger-whatsapp-bill-hint">
+                      Link shop WhatsApp in{" "}
+                      <Link href="/admin/settings" className="ledger-inline-link">
+                        Settings
+                      </Link>{" "}
+                      first. The bill will not send until WhatsApp is linked.
+                    </p>
+                  : null}
+                </>
               : null}
             </div>
           : null}
@@ -2401,11 +3023,14 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
           customer_name: entry.customer_name || undefined,
           payment_method: entry.payment_method || undefined,
           date: entry.book_date,
+          invoice_no: entry.invoice_no || undefined,
           ledger_entry_ids: [entry.id],
           lines: [
             {
               description: lineDescription,
               amount: entry.amount,
+              serial_number: entry.serial_number || undefined,
+              made_in_date: entry.made_in_date || undefined,
               warranty_months: entry.warranty_months || undefined,
               warranty_until: entry.warranty_until || undefined,
             },
@@ -2426,6 +3051,54 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
     }
   }
 
+  function openEntrySaleBill(entry) {
+    const group = relatedSaleEntries(entry, entries);
+    const first = group[0] || entry;
+    const timeLabel = formatAdminTime(first.created_at);
+    const lineDescription =
+      entry.category === "repair" ?
+        entry.device_brand && entry.description ?
+          `${entry.device_brand} — ${entry.description}`
+        : entry.description || entry.device_brand || "Repair"
+      : undefined;
+    setSaleBill(
+      saleBillFromEntries(
+        group.map((row) =>
+          row.category === "repair" ?
+            {
+              ...row,
+              description:
+                row.device_brand && row.description ?
+                  `${row.device_brand} — ${row.description}`
+                : row.description || row.device_brand || "Repair",
+            }
+          : row
+        ),
+        {
+          kind: entry.category,
+          date: first.book_date,
+          time: timeLabel && timeLabel !== "—" ? timeLabel : "",
+          cashier: first.created_by_name || userName,
+          lineDescription,
+        }
+      )
+    );
+  }
+
+  function downloadCurrentSaleBill() {
+    if (!saleBill) return;
+    import("./exportSaleBillPdf").then(({ downloadSaleBillPdf }) => {
+      downloadSaleBillPdf(saleBill);
+    });
+  }
+
+  function printCurrentSaleBill() {
+    if (!saleBill) return;
+    document.body.classList.add("is-printing-sale-bill");
+    window.print();
+    window.setTimeout(() => document.body.classList.remove("is-printing-sale-bill"), 400);
+  }
+
   function renderEntryActions(entry) {
     if (!canEdit) return null;
     const waCount = Number(entry.whatsapp_bill_send_count) || 0;
@@ -2438,6 +3111,7 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
         historyTitle={entryWhatsappBillLogTitle(entry)}
         onSendWhatsapp={() => sendEntryWhatsappBill(entry)}
         onShowHistory={() => openEntryWhatsappLog(entry)}
+        onPrintBill={() => openEntrySaleBill(entry)}
         onDelete={() => removeEntry(entry.id)}
       />
     );
@@ -2968,7 +3642,9 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
                           {entryCategoryBadge(entry)}
                         </span>
                       </td>
-                      <td>{entryItemLabel(entry)}</td>
+                      <td className="ledger-col-item">
+                        <LedgerClampText text={entryItemLabel(entry)} label="Item" />
+                      </td>
                       <td
                         className={`ledger-amount-cell${isPaymentTaken(entry) ? " is-credit" : ""}`}
                       >
@@ -2977,7 +3653,9 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
                           <small className="ledger-entry-profit">{entryProfitLine(entry)}</small>
                         : null}
                       </td>
-                      <td>{entryNote(entry)}</td>
+                      <td className="ledger-col-note">
+                        <LedgerClampText text={entryNote(entry)} label="Note" />
+                      </td>
                       <td>{entry.created_by_name || "—"}</td>
                       {canEdit ? <td>{renderEntryActions(entry)}</td> : null}
                     </tr>
@@ -3070,6 +3748,41 @@ export default function DayBookApp({ userRole = "staff", allowPastDaybooks = fal
         <button type="button" className="ledger-fab" aria-label="Add entry" onClick={() => openAddModal()}>
           +
         </button>
+      : null}
+
+      {saleBill ?
+        <div className="admin-modal ledger-sale-bill-modal" role="dialog" aria-modal="true" aria-labelledby="sale-bill-title">
+          <div className="admin-modal-backdrop" onClick={() => setSaleBill(null)} aria-hidden="true" />
+          <div className="admin-modal-card ledger-sale-bill-card">
+            <div className="admin-modal-head ledger-sale-bill-modal-head">
+              <div>
+                <p className="ledger-sale-bill-done">
+                  {saleBill.kind === "repair" ? "Repair saved" : "Sale completed"}
+                </p>
+                <h3 id="sale-bill-title">Invoice generated</h3>
+                <p className="admin-muted">
+                  Download the PDF, print it, or send the WhatsApp link so the customer can open and
+                  download the bill.
+                </p>
+              </div>
+              <button type="button" className="ledger-modal-close" onClick={() => setSaleBill(null)} aria-label="Close">
+                ×
+              </button>
+            </div>
+            <SaleBillSheet bill={saleBill} />
+            <div className="ledger-sale-bill-actions">
+              <button type="button" className="admin-btn" onClick={downloadCurrentSaleBill}>
+                Download PDF
+              </button>
+              <button type="button" className="admin-btn admin-btn-secondary" onClick={printCurrentSaleBill}>
+                Print bill
+              </button>
+              <button type="button" className="ledger-inline-link" onClick={() => setSaleBill(null)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
       : null}
 
       {waLogEntry ?

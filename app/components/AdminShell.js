@@ -139,7 +139,7 @@ export default function AdminShell({ children, user = null }) {
             }
             if (item.inventoryGroup) {
               return (
-                <div className="admin-nav-group" key={item.href}>
+                <div className={`admin-nav-group${invOpen ? " is-open" : ""}`} key={item.href}>
                   <button
                     type="button"
                     className={`admin-nav-item admin-nav-group-toggle${inInventory ? " is-active" : ""}`}
@@ -149,7 +149,12 @@ export default function AdminShell({ children, user = null }) {
                     <MenuIcon name={item.icon} />
                     {item.label}
                     <span className="admin-nav-chevron" aria-hidden="true">
-                      {invOpen ? "▾" : "▸"}
+                      <svg viewBox="0 0 24 24" width="12" height="12">
+                        <path
+                          fill="currentColor"
+                          d="M9.3 5.3a1 1 0 0 1 1.4 0l6 6a1 1 0 0 1 0 1.4l-6 6a1 1 0 1 1-1.4-1.4L14.58 12 9.3 6.7a1 1 0 0 1 0-1.4Z"
+                        />
+                      </svg>
                     </span>
                   </button>
                   {invOpen ?

@@ -1,0 +1,144 @@
+.customer-bill-page {
+  min-height: 100dvh;
+  padding: 20px 16px 40px;
+  background: #f6f7fb;
+}
+
+.customer-bill-card {
+  width: min(560px, 100%);
+  margin: 0 auto;
+  display: grid;
+  gap: 14px;
+}
+
+.customer-bill-kicker {
+  margin: 0;
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.customer-bill-card h1,
+.customer-bill-status {
+  margin: 0;
+  font-size: 24px;
+  color: #111318;
+}
+
+.customer-bill-lead,
+.customer-bill-card p {
+  margin: 0;
+  color: #5b6170;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.customer-bill-status {
+  text-align: center;
+  padding-top: 48px;
+  font-size: 16px;
+  color: #5b6170;
+}
+
+.customer-bill-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.customer-bill-download {
+  appearance: none;
+  border: 0;
+  border-radius: 12px;
+  padding: 14px 18px;
+  background: #16a34a;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.ledger-sale-bill {
+  background: #fff;
+  border: 1px solid #e6e8ee;
+  border-radius: 16px;
+  padding: 16px;
+}
+
+.ledger-sale-bill-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.ledger-sale-bill-kicker {
+  margin: 0 0 2px;
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ledger-sale-bill-head h2 {
+  margin: 0 0 4px;
+  font-size: 18px;
+}
+
+.ledger-sale-bill-head p,
+.ledger-sale-bill-meta p {
+  margin: 0;
+  color: #4b5563;
+  font-size: 12px;
+}
+
+.ledger-sale-bill-meta {
+  text-align: right;
+}
+
+.ledger-sale-bill-customer {
+  margin: 0 0 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.ledger-sale-bill-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.ledger-sale-bill-table th,
+.ledger-sale-bill-table td {
+  padding: 8px 6px;
+  border-bottom: 1px solid #eef1f4;
+  text-align: left;
+  vertical-align: top;
+}
+
+.ledger-sale-bill-table th:last-child,
+.ledger-sale-bill-table td:last-child {
+  text-align: right;
+}
+
+.ledger-sale-bill-table small {
+  display: block;
+  margin-top: 2px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.ledger-sale-bill-totals {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  font-size: 14px;
+}
+
+.ledger-sale-bill-thanks {
+  margin: 12px 0 0;
+  color: #6b7280;
+  font-size: 12px;
+}

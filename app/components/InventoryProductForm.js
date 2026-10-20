@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { apiUrl } from "@/lib/basePath";
 import { showError, showSuccess } from "@/lib/swal";
+import ProductImageUpload from "./ProductImageUpload";
+import ProductLinkQrModal from "./ProductLinkQrModal";
 
 const EMPTY = {
   name: "",
@@ -19,6 +21,7 @@ const EMPTY = {
   min_stock_level: "5",
   supplier: "",
   image_url: "",
+  image_url_external: "",
   warranty_text: "",
   status: "active",
   product_type: "quantity",
@@ -32,12 +35,25 @@ function validateForm(form) {
 
 export default function InventoryProductForm({ productId = null }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [categories, setCategories] = useState([]);
   const [form, setForm] = useState(EMPTY);
   const [busy, setBusy] = useState(false);
   const [loadingProduct, setLoadingProduct] = useState(Boolean(productId));
   const [stockQty, setStockQty] = useState("");
   const [stockNote, setStockNote] = useState("");
+  const [stagingToken] = useState(() =>
+    typeof crypto !== "undefined" && crypto.randomUUID ?
+      crypto.randomUUID()
+    : `st-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  );
+  const [imageStorageKey, setImageStorageKey] = useState(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState("");
+  const [clearProductImage, setClearProductImage] = useState(false);
+  const [savedProductId, setSavedProductId] = useState(null);
+  const [linkQrOpen, setLinkQrOpen] = useState(false);
+
+  const effectiveProductId = productId || savedProductId;
 
   useEffect(() => {
     fetch(apiUrl("/api/admin/inventory/categories"), { credentials: "include" })
@@ -50,6 +66,9 @@ export default function InventoryProductForm({ productId = null }) {
   useEffect(() => {
     if (!productId) {
       setForm(EMPTY);
+      setImageStorageKey(null);
+      setImagePreviewUrl("");
+      setClearProductImage(false);
       setLoadingProduct(false);
       return;
     }
@@ -76,16 +95,38 @@ export default function InventoryProductForm({ productId = null }) {
           min_stock_level: String(p.min_stock_level ?? ""),
           supplier: p.supplier || "",
           image_url: p.image_url || "",
+          image_url_external: p.image_url_external || "",
           warranty_text: p.warranty_text || "",
           status: p.status || "active",
           product_type: p.product_type || "quantity",
         });
+        setImageStorageKey(p.image_storage_key || null);
+        setImagePreviewUrl(p.image_url || "");
+        setClearProductImage(false);
       })
       .finally(() => setLoadingProduct(false));
   }, [productId, router]);
 
+  useEffect(() => {
+    if (searchParams.get("linkQr") === "1" && effectiveProductId) {
+      setLinkQrOpen(true);
+    }
+  }, [searchParams, effectiveProductId]);
+
   function onChange(key, value) {
     setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function onImageChange({ storage_key, url, cleared }) {
+    if (cleared) {
+      setImageStorageKey(null);
+      setImagePreviewUrl("");
+      setClearProductImage(true);
+      return;
+    }
+    setImageStorageKey(storage_key || null);
+    setImagePreviewUrl(url || "");
+    setClearProductImage(false);
   }
 
   async function onSubmit(e) {
@@ -105,15 +146,19 @@ export default function InventoryProductForm({ productId = null }) {
         selling_price: Number(form.selling_price) || 0,
         discount_pct: form.discount_pct === "" ? null : Number(form.discount_pct),
         min_stock_level: Number(form.min_stock_level) || 0,
+        image_url: String(form.image_url_external || "").trim() || null,
       };
-      if (!productId) payload.qty_on_hand = Number(form.qty_on_hand) || 0;
+      delete payload.image_url_external;
+      if (clearProductImage) payload.clear_product_image = true;
+      else       if (!effectiveProductId && imageStorageKey) payload.staging_token = stagingToken;
+      if (!effectiveProductId) payload.qty_on_hand = Number(form.qty_on_hand) || 0;
 
       const url =
-        productId ?
-          apiUrl(`/api/admin/inventory/products/${productId}`)
+        effectiveProductId ?
+          apiUrl(`/api/admin/inventory/products/${effectiveProductId}`)
         : apiUrl("/api/admin/inventory/products");
       const res = await fetch(url, {
-        method: productId ? "PATCH" : "POST",
+        method: effectiveProductId ? "PATCH" : "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -123,7 +168,22 @@ export default function InventoryProductForm({ productId = null }) {
         showError(data.message || "Could not save.");
         return;
       }
-      showSuccess(productId ? "Product saved." : "Product created.");
+      const createdId = data.product?.id;
+      const isNew = !effectiveProductId && createdId;
+      if (isNew) {
+        setSavedProductId(createdId);
+        router.replace(`/admin/inventory/products/${createdId}`);
+      }
+
+      if (form.product_type === "serialized" && (isNew || effectiveProductId)) {
+        showSuccess(isNew ? "Product created. Link QR stickers below." : "Product saved.");
+        if (isNew) setLinkQrOpen(true);
+        else router.refresh();
+        onChange("qty_on_hand", String(data.product?.qty_on_hand ?? form.qty_on_hand));
+        return;
+      }
+
+      showSuccess(effectiveProductId ? "Product saved." : "Product created.");
       router.push("/admin/inventory/products");
       router.refresh();
     } finally {
@@ -131,9 +191,20 @@ export default function InventoryProductForm({ productId = null }) {
     }
   }
 
+  async function refreshQtyFromServer() {
+    if (!effectiveProductId) return;
+    const res = await fetch(apiUrl(`/api/admin/inventory/products/${effectiveProductId}`), {
+      credentials: "include",
+    });
+    const j = await res.json();
+    if (j.ok && j.product) {
+      onChange("qty_on_hand", String(j.product.qty_on_hand ?? ""));
+    }
+  }
+
   async function addStock(e) {
     e.preventDefault();
-    if (!productId || form.product_type !== "quantity") return;
+    if (!effectiveProductId || form.product_type !== "quantity") return;
     const qty = Math.floor(Number(stockQty));
     if (!qty || qty <= 0) {
       showError("Enter quantity to add.");
@@ -144,7 +215,7 @@ export default function InventoryProductForm({ productId = null }) {
       credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        product_id: productId,
+        product_id: effectiveProductId,
         movement_type: "purchase",
         qty,
         unit_cost: Number(form.purchase_price) || null,
@@ -179,7 +250,7 @@ export default function InventoryProductForm({ productId = null }) {
           <p className="inv-list-back">
             <Link href="/admin/inventory/products">← Back to products</Link>
           </p>
-          <h1>{productId ? "Edit product" : "Add product"}</h1>
+          <h1>{effectiveProductId ? "Edit product" : "Add product"}</h1>
           <p>Fill the essentials first. Optional fields are grouped below.</p>
         </div>
       </header>
@@ -231,14 +302,14 @@ export default function InventoryProductForm({ productId = null }) {
             <input type="number" min="0" value={form.min_stock_level} onChange={(e) => onChange("min_stock_level", e.target.value)} />
           </label>
 
-          {!productId && !isSerialized ?
+          {!effectiveProductId && !isSerialized ?
             <label>
               <span>Opening stock</span>
               <input type="number" min="0" value={form.qty_on_hand} onChange={(e) => onChange("qty_on_hand", e.target.value)} />
             </label>
           : null}
 
-          {productId && !isSerialized ?
+          {effectiveProductId && !isSerialized ?
             <label>
               <span>Stock on hand</span>
               <input type="number" value={form.qty_on_hand} readOnly disabled />
@@ -246,11 +317,25 @@ export default function InventoryProductForm({ productId = null }) {
           : null}
 
           {isSerialized ?
-            <div className="inv-simple-hint inv-simple-span2">
-              Stock comes from linked QR stickers. After saving, use{" "}
-              <Link href="/admin/inventory/stock/add">Add stock (scan)</Link>.
-              {productId ?
-                <> Current on hand: <strong>{form.qty_on_hand || "0"}</strong>.</>
+            <div className="inv-product-qr-link-block inv-simple-span2">
+              <p className="inv-simple-hint">
+                Stock comes from linked QR stickers.
+                {effectiveProductId ?
+                  <>
+                    {" "}
+                    On hand: <strong>{form.qty_on_hand || "0"}</strong>
+                  </>
+                : " Save the product first, then link stickers."}
+              </p>
+              {effectiveProductId ?
+                <button
+                  type="button"
+                  className="admin-btn admin-btn-secondary"
+                  disabled={busy}
+                  onClick={() => setLinkQrOpen(true)}
+                >
+                  Link QR sticker
+                </button>
               : null}
             </div>
           : null}
@@ -263,6 +348,15 @@ export default function InventoryProductForm({ productId = null }) {
             </select>
           </label>
         </div>
+
+        <ProductImageUpload
+          productId={effectiveProductId}
+          stagingToken={stagingToken}
+          storageKey={imageStorageKey}
+          previewUrl={imagePreviewUrl}
+          disabled={busy}
+          onChange={onImageChange}
+        />
 
         <details className="inv-simple-more">
           <summary>More fields (optional)</summary>
@@ -284,8 +378,12 @@ export default function InventoryProductForm({ productId = null }) {
               <input value={form.supplier} onChange={(e) => onChange("supplier", e.target.value)} />
             </label>
             <label className="inv-simple-span2">
-              <span>Image URL</span>
-              <input value={form.image_url} onChange={(e) => onChange("image_url", e.target.value)} placeholder="https://…" />
+              <span>External image URL (optional)</span>
+              <input
+                value={form.image_url_external}
+                onChange={(e) => onChange("image_url_external", e.target.value)}
+                placeholder="https://… if not using upload above"
+              />
             </label>
             <label className="inv-simple-span2">
               <span>Warranty note</span>
@@ -299,12 +397,35 @@ export default function InventoryProductForm({ productId = null }) {
             Cancel
           </Link>
           <button type="submit" className="admin-btn" disabled={busy}>
-            {busy ? "Saving…" : productId ? "Save changes" : "Create product"}
+            {busy ? "Saving…" : effectiveProductId ? "Save changes" : "Create product"}
           </button>
+          {effectiveProductId && isSerialized ?
+            <Link href="/admin/inventory/products" className="admin-btn admin-btn-secondary">
+              Done
+            </Link>
+          : null}
         </div>
       </form>
 
-      {productId && !isSerialized ?
+      <ProductLinkQrModal
+        product={
+          effectiveProductId && isSerialized ?
+            {
+              id: Number(effectiveProductId),
+              name: form.name,
+              product_type: form.product_type,
+              purchase_price: Number(form.purchase_price) || 0,
+              selling_price: Number(form.selling_price) || 0,
+              supplier: form.supplier,
+            }
+          : null
+        }
+        open={linkQrOpen && Boolean(effectiveProductId) && isSerialized}
+        onClose={() => setLinkQrOpen(false)}
+        onLinked={() => refreshQtyFromServer()}
+      />
+
+      {effectiveProductId && !isSerialized ?
         <form className="admin-card inv-simple-form inv-simple-stock" onSubmit={addStock} noValidate>
           <h2 className="inv-simple-subtitle">Add stock (quantity product)</h2>
           <div className="inv-simple-form-grid">

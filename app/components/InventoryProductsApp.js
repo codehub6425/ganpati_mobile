@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { apiUrl } from "@/lib/basePath";
+import { apiUrl, productImageSrc } from "@/lib/basePath";
+import ProductLinkQrModal from "@/app/components/ProductLinkQrModal";
 import { confirmAction, showError, showSuccess } from "@/lib/swal";
 
 const PAGE_SIZE = 15;
@@ -19,13 +20,13 @@ function productStatusLabel(p) {
   return { text: "Active", className: "is-ok" };
 }
 
-function ProductCard({ p, onDelete }) {
+function ProductCard({ p, onDelete, onLinkQr }) {
   const st = productStatusLabel(p);
   return (
     <li className={`inv-product-card${p.low_stock ? " is-low-stock" : ""}`}>
       <Link href={`/admin/inventory/products/${p.id}`} className="inv-product-card-main">
         {p.image_url ?
-          <img src={p.image_url} alt="" className="inv-product-card-thumb" />
+          <img src={productImageSrc(p.image_url)} alt="" className="inv-product-card-thumb" />
         : (
           <span className="inv-product-card-thumb inv-thumb-empty" aria-hidden="true">
             📦
@@ -47,6 +48,9 @@ function ProductCard({ p, onDelete }) {
         <span className={`inv-status-pill ${st.className}`}>{st.text}</span>
       </Link>
       <div className="inv-product-card-actions">
+        <button type="button" className="inv-card-action" onClick={(e) => onLinkQr(p, e)}>
+          Link QR
+        </button>
         <Link href={`/admin/inventory/products/${p.id}`} className="inv-card-action">
           Edit
         </Link>
@@ -79,6 +83,7 @@ export default function InventoryProductsApp() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [mobileVisibleCount, setMobileVisibleCount] = useState(MOBILE_BATCH);
   const loadMoreRef = useRef(null);
+  const [linkProduct, setLinkProduct] = useState(null);
 
   useEffect(() => {
     if (urlEditId) {
@@ -178,6 +183,12 @@ export default function InventoryProductsApp() {
     Boolean(search.trim()) || activeFilterCount > 0;
 
   const showSetupGuide = !loading && !hasActiveFilters && products.length === 0;
+
+  function openLinkQr(p, e) {
+    e.preventDefault();
+    e.stopPropagation();
+    setLinkProduct(p);
+  }
 
   async function deleteProduct(p, e) {
     e.preventDefault();
@@ -337,7 +348,7 @@ export default function InventoryProductsApp() {
           <>
             <ul className="inv-product-cards inv-mobile-only" aria-label="Product list">
               {mobileProducts.map((p) => (
-                <ProductCard key={p.id} p={p} onDelete={deleteProduct} />
+                <ProductCard key={p.id} p={p} onDelete={deleteProduct} onLinkQr={openLinkQr} />
               ))}
             </ul>
 
@@ -381,7 +392,7 @@ export default function InventoryProductsApp() {
                         <td className="inv-col-product">
                           <Link href={`/admin/inventory/products/${p.id}`} className="inv-product-cell inv-product-row-link">
                             {p.image_url ?
-                              <img src={p.image_url} alt="" className="inv-thumb" />
+                              <img src={productImageSrc(p.image_url)} alt="" className="inv-thumb" />
                             : (
                               <span className="inv-thumb inv-thumb-empty" aria-hidden="true">
                                 📦
@@ -403,6 +414,9 @@ export default function InventoryProductsApp() {
                           <span className={`inv-status-pill ${st.className}`}>{st.text}</span>
                         </td>
                         <td className="inv-col-actions">
+                          <button type="button" className="inv-text-btn" onClick={(e) => openLinkQr(p, e)}>
+                            Link QR
+                          </button>
                           <Link href={`/admin/inventory/products/${p.id}`} className="inv-text-btn">
                             Edit
                           </Link>
@@ -442,6 +456,13 @@ export default function InventoryProductsApp() {
       <Link href="/admin/inventory/products/new" className="inv-pwa-fab admin-btn inv-mobile-only" aria-label="Add product">
         +
       </Link>
+
+      <ProductLinkQrModal
+        product={linkProduct}
+        open={Boolean(linkProduct)}
+        onClose={() => setLinkProduct(null)}
+        onLinked={() => loadProducts()}
+      />
     </div>
   );
 }

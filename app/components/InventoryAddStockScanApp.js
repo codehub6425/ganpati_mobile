@@ -1,25 +1,34 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import InvPageShell from "@/app/components/InvPageShell";
 import QrCodeScanner from "@/app/components/QrCodeScanner";
 import { apiUrl } from "@/lib/basePath";
+import { normalizeQrCode } from "@/lib/qr-code";
 import { showError, showSuccess } from "@/lib/swal";
+import { WARRANTY_MONTH_CHOICES } from "@/lib/warranty";
 
 export default function InventoryAddStockScanApp() {
   const router = useRouter();
-  const [code, setCode] = useState("");
+  const searchParams = useSearchParams();
+  const initialCode = normalizeQrCode(searchParams.get("code") || "");
+  const [code, setCode] = useState(initialCode);
   const [lookup, setLookup] = useState(null);
   const [products, setProducts] = useState([]);
   const [form, setForm] = useState({
     product_id: "",
     purchase_price: "",
     selling_price: "",
-    warranty_months: "",
     supplier: "",
     note: "",
+    has_serial: false,
+    serial_number: "",
+    has_made_in: false,
+    made_in_date: "",
+    has_warranty: false,
+    warranty_months: "12",
   });
   const [useCamera, setUseCamera] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -35,7 +44,7 @@ export default function InventoryAddStockScanApp() {
   }, []);
 
   const runLookup = useCallback(async (raw) => {
-    const c = String(raw || "").trim();
+    const c = normalizeQrCode(raw);
     if (!c) return;
     setCode(c);
     const res = await fetch(apiUrl(`/api/admin/inventory/qr/lookup?code=${encodeURIComponent(c)}`), {
@@ -58,6 +67,10 @@ export default function InventoryAddStockScanApp() {
     }
   }, []);
 
+  useEffect(() => {
+    if (initialCode) runLookup(initialCode);
+  }, [initialCode, runLookup]);
+
   function onScan(text) {
     runLookup(text);
     setUseCamera(false);
@@ -76,9 +89,11 @@ export default function InventoryAddStockScanApp() {
           product_id: Number(form.product_id),
           purchase_price: form.purchase_price,
           selling_price: form.selling_price,
-          warranty_months: form.warranty_months,
           supplier: form.supplier,
           note: form.note,
+          serial_number: form.has_serial ? form.serial_number : undefined,
+          made_in_date: form.has_made_in ? form.made_in_date : undefined,
+          warranty_months: form.has_warranty ? form.warranty_months : undefined,
         }),
       });
       const data = await res.json();
@@ -98,14 +113,14 @@ export default function InventoryAddStockScanApp() {
   return (
     <InvPageShell
       title="Add stock (scan QR)"
-      subtitle="Step 2: Scan a pre-printed sticker and link it to a serialized product."
+      subtitle="Scan a printed sticker and link it to a serialized product. Serial, made-in date, and warranty are optional."
     >
       <section className="admin-card inv-scan-panel">
         <div className="inv-scan-code-row">
           <input
             placeholder="Scan or type code e.g. GMP-000125"
             value={code}
-            onChange={(e) => setCode(e.target.value.toUpperCase())}
+            onChange={(e) => setCode(normalizeQrCode(e.target.value))}
             onKeyDown={(e) => e.key === "Enter" && runLookup(code)}
           />
           <button type="button" className="admin-btn admin-btn-secondary" onClick={() => runLookup(code)}>
@@ -171,18 +186,86 @@ export default function InventoryAddStockScanApp() {
               />
             </label>
             <label>
-              <span>Warranty (months)</span>
-              <input
-                type="number"
-                min="0"
-                value={form.warranty_months}
-                onChange={(e) => setForm({ ...form, warranty_months: e.target.value })}
-              />
-            </label>
-            <label>
               <span>Supplier</span>
               <input value={form.supplier} onChange={(e) => setForm({ ...form, supplier: e.target.value })} />
             </label>
+
+            <div className="ledger-accessory-options" role="group" aria-label="Optional unit details">
+              <label className="ledger-accessory-warranty-check">
+                <input
+                  type="checkbox"
+                  checked={form.has_serial}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      has_serial: e.target.checked,
+                      serial_number: e.target.checked ? form.serial_number : "",
+                    })
+                  }
+                />
+                <span>Serial no.</span>
+              </label>
+              <label className="ledger-accessory-warranty-check">
+                <input
+                  type="checkbox"
+                  checked={form.has_made_in}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      has_made_in: e.target.checked,
+                      made_in_date: e.target.checked ? form.made_in_date : "",
+                    })
+                  }
+                />
+                <span>Made-in date</span>
+              </label>
+              <label className="ledger-accessory-warranty-check">
+                <input
+                  type="checkbox"
+                  checked={form.has_warranty}
+                  onChange={(e) => setForm({ ...form, has_warranty: e.target.checked })}
+                />
+                <span>Warranty</span>
+              </label>
+            </div>
+
+            {form.has_serial ?
+              <label>
+                <span>Serial number</span>
+                <input
+                  maxLength={80}
+                  placeholder="Enter serial number"
+                  value={form.serial_number}
+                  onChange={(e) => setForm({ ...form, serial_number: e.target.value })}
+                />
+              </label>
+            : null}
+            {form.has_made_in ?
+              <label>
+                <span>Made-in date</span>
+                <input
+                  type="date"
+                  value={form.made_in_date}
+                  onChange={(e) => setForm({ ...form, made_in_date: e.target.value })}
+                />
+              </label>
+            : null}
+            {form.has_warranty ?
+              <label>
+                <span>Warranty</span>
+                <select
+                  value={form.warranty_months}
+                  onChange={(e) => setForm({ ...form, warranty_months: e.target.value })}
+                >
+                  {WARRANTY_MONTH_CHOICES.map((m) => (
+                    <option key={m} value={String(m)}>
+                      {m} months
+                    </option>
+                  ))}
+                </select>
+              </label>
+            : null}
+
             <button type="submit" className="admin-btn" disabled={busy}>
               {busy ? "Saving…" : "Add to stock"}
             </button>

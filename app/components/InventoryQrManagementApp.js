@@ -3,15 +3,29 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiUrl } from "@/lib/basePath";
+import { resolveStickerSize } from "@/lib/qr-sticker-sizes";
 import { showError, showSuccess } from "@/lib/swal";
 
-const PRESETS = [500, 1000, 5000];
+const PRESETS = [50, 100, 500, 1000, 5000];
 const PAGE_SIZE = 10;
 const MOBILE_BATCH = 15;
 
+const SHEET_CARDS = [
+  { id: "press12x18", title: "Printing press", detail: "12×18 inch", hint: "Give the file to the printer" },
+  { id: "a4", title: "Shop printer", detail: "A4 paper", hint: "Print here and cut" },
+];
+
+const SIZE_CARDS = [
+  { id: "small", title: "Small", detail: "20 mm", hint: "Cables, earbuds" },
+  { id: "medium", title: "Medium", detail: "30 mm", hint: "Chargers, covers" },
+  { id: "large", title: "Large", detail: "40 mm", hint: "Boxes, phones" },
+];
+
 function formatRange(b) {
   const pad = (n) => String(n).padStart(6, "0");
-  return `${b.prefix}-${pad(b.start_num)} … ${b.prefix}-${pad(b.end_num)}`;
+  const start = b.start_num ?? b.startNum;
+  const end = b.end_num ?? b.endNum;
+  return `${b.prefix}-${pad(start)} … ${b.prefix}-${pad(end)}`;
 }
 
 function formatDate(d) {
@@ -23,52 +37,172 @@ function formatDate(d) {
   }
 }
 
+function sheetCount(count, size, sheet) {
+  const layout = resolveStickerSize(size, sheet);
+  return Math.max(1, Math.ceil(Number(count || 0) / layout.perPage));
+}
+
+function ChoiceCard({ selected, title, detail, hint, onClick }) {
+  return (
+    <button
+      type="button"
+      className={`inv-qr-choice${selected ? " is-selected" : ""}`}
+      aria-pressed={selected}
+      onClick={onClick}
+    >
+      <strong>{title}</strong>
+      {detail ? <span>{detail}</span> : null}
+      {hint ? <small>{hint}</small> : null}
+    </button>
+  );
+}
+
 function GenerateBatchModal({ open, prefix, count, busy, onClose, onPrefix, onCount, onSubmit }) {
   if (!open) return null;
   return (
     <div className="admin-modal" role="dialog" aria-modal="true" aria-labelledby="inv-qr-gen-title">
       <button type="button" className="admin-modal-backdrop" onClick={onClose} aria-label="Close" />
-      <div className="admin-modal-card inv-cat-modal-card">
+      <div className="admin-modal-card inv-qr-modal-card">
         <header className="admin-modal-head">
           <div>
-            <h3 id="inv-qr-gen-title">Generate QR batch</h3>
-            <p>Create sticker codes and download a print PDF.</p>
+            <h3 id="inv-qr-gen-title">Make new stickers</h3>
+            <p>Create unused QR codes. You pick size when you print.</p>
           </div>
           <button type="button" className="inv-modal-close-btn" onClick={onClose} aria-label="Close">
             ×
           </button>
         </header>
         <form
-          className="inv-cat-modal-form"
+          className="inv-qr-modal-form"
           onSubmit={(e) => {
             e.preventDefault();
             onSubmit();
           }}
         >
-          <label className="inv-cat-modal-label">
-            <span>Prefix</span>
+          <div className="inv-qr-field">
+            <span>How many codes?</span>
+            <div className="inv-qr-chip-row">
+              {PRESETS.map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  className={`inv-qr-count-chip${count === n ? " is-selected" : ""}`}
+                  onClick={() => onCount(n)}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+          </div>
+          <label className="inv-qr-field">
+            <span>Code prefix</span>
             <input value={prefix} onChange={(e) => onPrefix(e.target.value.toUpperCase())} maxLength={20} placeholder="GMP" />
           </label>
-          <label className="inv-cat-modal-label">
-            <span>Batch size</span>
-            <select value={count} onChange={(e) => onCount(Number(e.target.value))}>
-              {PRESETS.map((n) => (
-                <option key={n} value={n}>
-                  {n} codes
-                </option>
+          <p className="inv-qr-modal-note">Example: {prefix || "GMP"}-000001. Print size is chosen on download.</p>
+          <div className="inv-qr-modal-actions">
+            <button type="button" className="admin-btn admin-btn-secondary" onClick={onClose}>
+              Cancel
+            </button>
+            <button type="submit" className="admin-btn" disabled={busy}>
+              {busy ? "Creating…" : `Create ${count} codes`}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function PrintSizeModal({ batch, size, sheet, format, onSize, onSheet, onFormat, onClose, onConfirm }) {
+  if (!batch) return null;
+  const layout = resolveStickerSize(size, sheet);
+  const sheets = sheetCount(batch.count, size, sheet);
+  return (
+    <div className="admin-modal" role="dialog" aria-modal="true" aria-labelledby="inv-qr-print-title">
+      <button type="button" className="admin-modal-backdrop" onClick={onClose} aria-label="Close" />
+      <div className="admin-modal-card inv-qr-modal-card">
+        <header className="admin-modal-head">
+          <div>
+            <h3 id="inv-qr-print-title">Print stickers</h3>
+            <p>{formatRange(batch)}</p>
+          </div>
+          <button type="button" className="inv-modal-close-btn" onClick={onClose} aria-label="Close">
+            ×
+          </button>
+        </header>
+        <form
+          className="inv-qr-modal-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            onConfirm();
+          }}
+        >
+          <div className="inv-qr-field">
+            <span>1. Where will you print?</span>
+            <div className="inv-qr-choice-grid inv-qr-choice-grid--2">
+              {SHEET_CARDS.map((card) => (
+                <ChoiceCard
+                  key={card.id}
+                  selected={sheet === card.id}
+                  title={card.title}
+                  detail={card.detail}
+                  hint={card.hint}
+                  onClick={() => onSheet(card.id)}
+                />
               ))}
-            </select>
-          </label>
-          <div className="inv-cat-modal-actions">
-            <span />
-            <div className="inv-cat-modal-actions-main">
-              <button type="button" className="admin-btn admin-btn-secondary" onClick={onClose}>
-                Cancel
-              </button>
-              <button type="submit" className="admin-btn" disabled={busy}>
-                {busy ? "Generating…" : "Generate"}
-              </button>
             </div>
+          </div>
+
+          <div className="inv-qr-field">
+            <span>2. Sticker size</span>
+            <div className="inv-qr-choice-grid inv-qr-choice-grid--3">
+              {SIZE_CARDS.map((card) => {
+                const option = resolveStickerSize(card.id, sheet);
+                return (
+                  <ChoiceCard
+                    key={card.id}
+                    selected={size === card.id}
+                    title={card.title}
+                    detail={`${card.detail} · ${option.perPage}/sheet`}
+                    hint={card.hint}
+                    onClick={() => onSize(card.id)}
+                  />
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="inv-qr-field">
+            <span>3. File type</span>
+            <div className="inv-qr-choice-grid inv-qr-choice-grid--2">
+              <ChoiceCard
+                selected={format === "pdf"}
+                title="PDF"
+                detail="Best for the press"
+                hint="Codes printed under each QR"
+                onClick={() => onFormat("pdf")}
+              />
+              <ChoiceCard
+                selected={format === "png"}
+                title="Image"
+                detail="PNG sheet"
+                hint="Photo file, or ZIP if many sheets"
+                onClick={() => onFormat("png")}
+              />
+            </div>
+          </div>
+
+          <p className="inv-qr-print-summary">
+            {batch.count} codes · {layout.qrMm} mm · {sheets} {sheets === 1 ? "sheet" : "sheets"}
+          </p>
+
+          <div className="inv-qr-modal-actions">
+            <button type="button" className="admin-btn admin-btn-secondary" onClick={onClose}>
+              Cancel
+            </button>
+            <button type="submit" className="admin-btn">
+              {format === "png" ? "Download image" : "Download PDF"}
+            </button>
           </div>
         </form>
       </div>
@@ -77,6 +211,7 @@ function GenerateBatchModal({ open, prefix, count, busy, onClose, onPrefix, onCo
 }
 
 function BatchCard({ b, onPdf }) {
+  const unused = Number(b.unassigned_count || 0);
   return (
     <li className="inv-product-card inv-qr-batch-card">
       <div className="inv-product-card-main inv-qr-batch-main">
@@ -89,18 +224,18 @@ function BatchCard({ b, onPdf }) {
             {b.count} codes · {formatDate(b.created_at)}
           </span>
           <span className="inv-product-card-price inv-qr-batch-stats">
-            <span>Unassigned {b.unassigned_count}</span>
-            <span>In stock {b.in_stock_count}</span>
-            <span>Sold {b.sold_count}</span>
+            <span>{unused} unused</span>
+            <span>{b.in_stock_count} in shop</span>
+            <span>{b.sold_count} sold</span>
           </span>
         </div>
       </div>
       <div className="inv-product-card-actions">
-        <button type="button" className="inv-card-action" onClick={() => onPdf(b.id)}>
-          Download PDF
+        <button type="button" className="inv-card-action inv-card-action-primary" onClick={() => onPdf(b)}>
+          Print stickers
         </button>
         <Link href="/admin/inventory/stock/add" className="inv-card-action">
-          Link stock
+          Link to product
         </Link>
       </div>
     </li>
@@ -110,11 +245,17 @@ function BatchCard({ b, onPdf }) {
 export default function InventoryQrManagementApp() {
   const [batches, setBatches] = useState([]);
   const [prefix, setPrefix] = useState("GMP");
-  const [count, setCount] = useState(500);
+  const [count, setCount] = useState(100);
+  const [size, setSize] = useState("medium");
+  const [sheet, setSheet] = useState("press12x18");
   const [busy, setBusy] = useState(false);
   const [qrKpis, setQrKpis] = useState(null);
   const [loading, setLoading] = useState(true);
   const [genModalOpen, setGenModalOpen] = useState(false);
+  const [printBatch, setPrintBatch] = useState(null);
+  const [printSize, setPrintSize] = useState("medium");
+  const [printSheet, setPrintSheet] = useState("press12x18");
+  const [printFormat, setPrintFormat] = useState("pdf");
   const [page, setPage] = useState(1);
   const [mobileVisibleCount, setMobileVisibleCount] = useState(MOBILE_BATCH);
   const loadMoreRef = useRef(null);
@@ -171,23 +312,42 @@ export default function InventoryQrManagementApp() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prefix, count }),
+        body: JSON.stringify({ prefix, count, label_size: size }),
       });
       const data = await res.json();
       if (!res.ok) {
         showError(data.message || "Could not generate.");
         return;
       }
-      showSuccess(`Created ${data.batch.count} codes (${data.batch.prefix}-${String(data.batch.startNum).padStart(6, "0")} …).`);
+      const created = data.batch || {};
+      showSuccess(`Created ${created.count} codes. Download the print file next.`);
       setGenModalOpen(false);
       load();
+      openPrint({
+        id: created.batchId,
+        prefix: created.prefix,
+        start_num: created.startNum,
+        end_num: created.endNum,
+        count: created.count,
+        label_size: created.label_size || size,
+      });
     } finally {
       setBusy(false);
     }
   }
 
-  function downloadPdf(batchId) {
-    window.open(apiUrl(`/api/admin/inventory/qr/batches/${batchId}/print`), "_blank");
+  function openPrint(batch) {
+    setPrintSize(resolveStickerSize(batch.label_size || size, sheet).id);
+    setPrintSheet(sheet);
+    setPrintFormat("pdf");
+    setPrintBatch(batch);
+  }
+
+  function downloadExport() {
+    if (!printBatch) return;
+    const q = new URLSearchParams({ size: printSize, sheet: printSheet, format: printFormat });
+    window.open(apiUrl(`/api/admin/inventory/qr/batches/${printBatch.id}/print?${q}`), "_blank");
+    setPrintBatch(null);
   }
 
   const showingFrom = batches.length ? (page - 1) * PAGE_SIZE + 1 : 0;
@@ -200,107 +360,67 @@ export default function InventoryQrManagementApp() {
           ←
         </Link>
         <div className="inv-pwa-head-text">
-          <h1>QR management</h1>
-          <p className="inv-pwa-head-sub">{batches.length} batches</p>
+          <h1>QR stickers</h1>
+          <p className="inv-pwa-head-sub">Print, stick, then scan to sell</p>
         </div>
       </header>
-
-      {qrKpis ?
-        <div className="inv-qr-kpi-chips inv-mobile-only">
-          <span className="inv-qr-chip">Unassigned <strong>{qrKpis.qr_unassigned ?? 0}</strong></span>
-          <span className="inv-qr-chip">In stock <strong>{qrKpis.qr_in_stock ?? 0}</strong></span>
-          <span className="inv-qr-chip">Sold <strong>{qrKpis.qr_sold ?? 0}</strong></span>
-        </div>
-      : null}
-
-      <nav className="inv-qr-workflow inv-mobile-only" aria-label="QR workflow">
-        <Link href="/admin/inventory/stock/add">1. Link stock</Link>
-        <Link href="/admin/inventory/stock">2. Stock list</Link>
-        <Link href="/admin/inventory/scan">3. Scan / sell</Link>
-      </nav>
 
       <header className="inv-hub-header inv-desktop-only">
         <div>
           <p className="inv-list-back">
             <Link href="/admin/inventory">← Inventory dashboard</Link>
           </p>
-          <h1>QR management</h1>
-          <p>Generate sticker codes, print PDF, then link codes when adding stock.</p>
+          <h1>QR stickers</h1>
+          <p>Make codes, print a sticker sheet, stick on the product, then scan to sell.</p>
         </div>
         <div className="inv-qr-head-actions">
+          <Link href="/admin/inventory/stock" className="admin-btn admin-btn-secondary">
+            QR code list
+          </Link>
           <Link href="/admin/inventory/stock/add" className="admin-btn admin-btn-secondary">
-            Add stock
+            Link to product
           </Link>
           <button type="button" className="admin-btn" onClick={() => setGenModalOpen(true)}>
-            Generate batch
+            Make stickers
           </button>
         </div>
       </header>
 
+      <ol className="inv-qr-steps">
+        <li>
+          <strong>1. Make</strong>
+          <span>Create unused codes</span>
+        </li>
+        <li>
+          <strong>2. Print</strong>
+          <span>Press sheet or A4</span>
+        </li>
+        <li>
+          <strong>3. Scan</strong>
+          <span>Sell from the sticker</span>
+        </li>
+      </ol>
+
       {qrKpis ?
-        <div className="inv-stat-grid inv-qr-kpi-row inv-desktop-only">
-          <article className="inv-stat-card inv-stat-sky">
-            <div className="inv-stat-icon" aria-hidden="true">
-              ▦
-            </div>
-            <div>
-              <span>Unassigned</span>
-              <strong>{qrKpis.qr_unassigned ?? 0}</strong>
-              <small>Stickers not linked</small>
-            </div>
-          </article>
-          <article className="inv-stat-card inv-stat-green">
-            <div className="inv-stat-icon" aria-hidden="true">
-              ✓
-            </div>
-            <div>
-              <span>In stock</span>
-              <strong>{qrKpis.qr_in_stock ?? 0}</strong>
-              <small>Linked to products</small>
-            </div>
-          </article>
-          <article className="inv-stat-card inv-stat-red">
-            <div className="inv-stat-icon" aria-hidden="true">
-              ◉
-            </div>
-            <div>
-              <span>Sold</span>
-              <strong>{qrKpis.qr_sold ?? 0}</strong>
-              <small>Already sold</small>
-            </div>
-          </article>
+        <div className="inv-qr-kpi-chips">
+          <span className="inv-qr-chip">Unused <strong>{qrKpis.qr_unassigned ?? 0}</strong></span>
+          <span className="inv-qr-chip">In shop <strong>{qrKpis.qr_in_stock ?? 0}</strong></span>
+          <span className="inv-qr-chip">Sold <strong>{qrKpis.qr_sold ?? 0}</strong></span>
         </div>
       : null}
 
-      <form className="admin-card inv-qr-gen-form inv-desktop-only" onSubmit={(e) => { e.preventDefault(); generate(); }}>
-        <h2 className="inv-qr-gen-title">New batch</h2>
-        <div className="inv-qr-gen-fields">
-          <label>
-            <span>Prefix</span>
-            <input value={prefix} onChange={(e) => setPrefix(e.target.value.toUpperCase())} maxLength={20} />
-          </label>
-          <label>
-            <span>Batch size</span>
-            <select value={count} onChange={(e) => setCount(Number(e.target.value))}>
-              {PRESETS.map((n) => (
-                <option key={n} value={n}>
-                  {n} codes
-                </option>
-              ))}
-            </select>
-          </label>
-          <button type="submit" className="admin-btn" disabled={busy}>
-            {busy ? "Generating…" : "Generate batch"}
-          </button>
-        </div>
-      </form>
+      <nav className="inv-qr-workflow inv-mobile-only" aria-label="Next steps">
+        <Link href="/admin/inventory/stock">Code list</Link>
+        <Link href="/admin/inventory/stock/add">Link to product</Link>
+        <Link href="/admin/inventory/scan">Scan / sell</Link>
+      </nav>
 
       <section className="admin-card inv-table-section inv-table-card">
         <header className="inv-bottom-head inv-qr-batch-head">
-          <h2>Recent batches</h2>
-          <Link href="/admin/inventory/stock" className="inv-desktop-only">
-            View all QR stock
-          </Link>
+          <h2>Your batches</h2>
+          <button type="button" className="inv-text-btn inv-desktop-only" onClick={() => setGenModalOpen(true)}>
+            Make more
+          </button>
         </header>
 
         {loading ?
@@ -309,7 +429,7 @@ export default function InventoryQrManagementApp() {
           <>
             <ul className="inv-product-cards inv-mobile-only" aria-label="QR batches">
               {mobileItems.map((b) => (
-                <BatchCard key={b.id} b={b} onPdf={downloadPdf} />
+                <BatchCard key={b.id} b={b} onPdf={openPrint} />
               ))}
             </ul>
 
@@ -325,17 +445,22 @@ export default function InventoryQrManagementApp() {
             : null}
 
             {!batches.length ?
-              <p className="admin-empty">No batches yet. Generate your first sticker batch.</p>
+              <div className="inv-qr-empty">
+                <p>No sticker codes yet.</p>
+                <button type="button" className="admin-btn" onClick={() => setGenModalOpen(true)}>
+                  Make your first batch
+                </button>
+              </div>
             : null}
 
             <div className="inv-table-wrap inv-desktop-only">
               <table className="inv-product-table inv-product-table--clean">
                 <thead>
                   <tr>
-                    <th scope="col">Code range</th>
-                    <th scope="col">Count</th>
-                    <th scope="col">Unassigned</th>
-                    <th scope="col">In stock</th>
+                    <th scope="col">Codes</th>
+                    <th scope="col">Qty</th>
+                    <th scope="col">Unused</th>
+                    <th scope="col">In shop</th>
                     <th scope="col">Sold</th>
                     <th scope="col">Created</th>
                     <th scope="col" className="inv-col-actions">
@@ -355,8 +480,8 @@ export default function InventoryQrManagementApp() {
                       <td>{b.sold_count}</td>
                       <td>{formatDate(b.created_at) || "—"}</td>
                       <td className="inv-col-actions">
-                        <button type="button" className="inv-text-btn" onClick={() => downloadPdf(b.id)}>
-                          PDF
+                        <button type="button" className="inv-text-btn" onClick={() => openPrint(b)}>
+                          Print
                         </button>
                       </td>
                     </tr>
@@ -390,7 +515,7 @@ export default function InventoryQrManagementApp() {
       <button
         type="button"
         className="inv-pwa-fab admin-btn inv-mobile-only"
-        aria-label="Generate QR batch"
+        aria-label="Make new stickers"
         onClick={() => setGenModalOpen(true)}
       >
         +
@@ -405,6 +530,18 @@ export default function InventoryQrManagementApp() {
         onPrefix={setPrefix}
         onCount={setCount}
         onSubmit={generate}
+      />
+
+      <PrintSizeModal
+        batch={printBatch}
+        size={printSize}
+        sheet={printSheet}
+        format={printFormat}
+        onSize={setPrintSize}
+        onSheet={setPrintSheet}
+        onFormat={setPrintFormat}
+        onClose={() => setPrintBatch(null)}
+        onConfirm={downloadExport}
       />
     </div>
   );
