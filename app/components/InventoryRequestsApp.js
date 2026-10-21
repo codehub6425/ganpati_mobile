@@ -1,6 +1,7 @@
 "use client";
 
 import InvPageShell from "@/app/components/InvPageShell";
+import ListSkeleton from "@/app/components/ListSkeleton";
 import { useCallback, useEffect, useState } from "react";
 import { apiUrl } from "@/lib/basePath";
 import { showError, showSuccess } from "@/lib/swal";
@@ -9,6 +10,7 @@ const STATUSES = ["pending", "available", "purchased", "cancelled"];
 
 export default function InventoryRequestsApp() {
   const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("pending");
   const [form, setForm] = useState({
     customer_name: "",
@@ -20,12 +22,14 @@ export default function InventoryRequestsApp() {
   });
 
   const load = useCallback(async () => {
+    setLoading(true);
     const qs = filter ? `?status=${filter}` : "";
     const res = await fetch(apiUrl(`/api/admin/inventory/requests${qs}`), {
       credentials: "include",
     });
     const j = await res.json();
     if (j.ok) setRequests(j.requests || []);
+    setLoading(false);
   }, [filter]);
 
   useEffect(() => {
@@ -154,7 +158,11 @@ export default function InventoryRequestsApp() {
         ))}
       </div>
 
-      <ul className="inventory-request-list">
+      {loading ?
+        <div className="admin-card">
+          <ListSkeleton variant="rows" rows={6} />
+        </div>
+      : <ul className="inventory-request-list">
         {requests.map((r) => (
           <li key={r.id} className="admin-card inventory-request-card">
             <div>
@@ -183,7 +191,7 @@ export default function InventoryRequestsApp() {
             : null}
           </li>
         ))}
-      </ul>
+      </ul>}
     </InvPageShell>
   );
 }

@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import ListSkeleton from "@/app/components/ListSkeleton";
 import WhatsappBillLogApp from "@/app/components/WhatsappBillLogApp";
 import { getSessionUser } from "@/lib/auth";
 import { todayDateString } from "@/lib/ledger";
@@ -13,7 +14,13 @@ export default async function WhatsappBillLogPage() {
   const today = todayDateString();
 
   return (
-    <Suspense fallback={<p className="admin-muted">Loading…</p>}>
+    <Suspense
+      fallback={
+        <div className="wa-bill-log-page admin-card">
+          <ListSkeleton variant="wa-log" rows={8} />
+        </div>
+      }
+    >
       <WhatsappBillLogApp initialFrom={today} initialTo={today} />
     </Suspense>
   );

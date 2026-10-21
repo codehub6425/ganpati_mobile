@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiUrl, productImageSrc } from "@/lib/basePath";
 import ProductLinkQrModal from "@/app/components/ProductLinkQrModal";
+import ListSkeleton from "@/app/components/ListSkeleton";
+import ProductRowActions from "@/app/components/ProductRowActions";
 import { confirmAction, showError, showSuccess } from "@/lib/swal";
 
 const PAGE_SIZE = 15;
@@ -22,6 +24,9 @@ function productStatusLabel(p) {
 
 function ProductCard({ p, onDelete, onLinkQr }) {
   const st = productStatusLabel(p);
+  const actions = (
+    <ProductRowActions product={p} onLinkQr={onLinkQr} onDelete={onDelete} />
+  );
   return (
     <li className={`inv-product-card${p.low_stock ? " is-low-stock" : ""}`}>
       <Link href={`/admin/inventory/products/${p.id}`} className="inv-product-card-main">
@@ -47,17 +52,7 @@ function ProductCard({ p, onDelete, onLinkQr }) {
         </div>
         <span className={`inv-status-pill ${st.className}`}>{st.text}</span>
       </Link>
-      <div className="inv-product-card-actions">
-        <button type="button" className="inv-card-action" onClick={(e) => onLinkQr(p, e)}>
-          Link QR
-        </button>
-        <Link href={`/admin/inventory/products/${p.id}`} className="inv-card-action">
-          Edit
-        </Link>
-        <button type="button" className="inv-card-action is-danger" onClick={(e) => onDelete(p, e)}>
-          Delete
-        </button>
-      </div>
+      <div className="inv-product-card-actions inv-product-card-actions--menu">{actions}</div>
     </li>
   );
 }
@@ -356,7 +351,7 @@ export default function InventoryProductsApp() {
           <p className="admin-empty">{error}</p>
         : null}
         {loading ?
-          <p className="admin-empty inv-pwa-loading">Loading products…</p>
+          <ListSkeleton variant="product" rows={8} />
         : (
           <>
             <ul className="inv-product-cards inv-mobile-only" aria-label="Product list">
@@ -427,15 +422,7 @@ export default function InventoryProductsApp() {
                           <span className={`inv-status-pill ${st.className}`}>{st.text}</span>
                         </td>
                         <td className="inv-col-actions">
-                          <button type="button" className="inv-text-btn" onClick={(e) => openLinkQr(p, e)}>
-                            Link QR
-                          </button>
-                          <Link href={`/admin/inventory/products/${p.id}`} className="inv-text-btn">
-                            Edit
-                          </Link>
-                          <button type="button" className="inv-text-btn is-danger" onClick={(e) => deleteProduct(p, e)}>
-                            Delete
-                          </button>
+                          <ProductRowActions product={p} onLinkQr={openLinkQr} onDelete={deleteProduct} />
                         </td>
                       </tr>
                     );

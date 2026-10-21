@@ -7,6 +7,7 @@ import { apiUrl } from "@/lib/basePath";
 import { parseBookDate } from "@/lib/ledger";
 import { formatAdminDateFromIso, formatAdminDateTimeMedium } from "@/lib/format";
 import { todayDateString } from "@/lib/ledger";
+import ListSkeleton from "@/app/components/ListSkeleton";
 import DateRangeFilter from "./DateRangeFilter";
 
 function formatMoney(n) {
@@ -84,7 +85,7 @@ export default function WhatsappBillLogApp({ initialFrom, initialTo }) {
         />
         <p className="admin-muted wa-bill-log-summary">
           {loading ?
-            "Loading…"
+            <span className="inv-skeleton inv-skeleton-line w35" style={{ display: "inline-block", height: 14 }} />
           : `${events.length} send${events.length === 1 ? "" : "s"} in this range`}
         </p>
       </section>
@@ -97,7 +98,7 @@ export default function WhatsappBillLogApp({ initialFrom, initialTo }) {
 
       <section className="admin-card wa-bill-log-table-wrap">
         {loading ?
-          <p className="admin-muted">Loading send log…</p>
+          <ListSkeleton variant="wa-log" rows={10} />
         : events.length === 0 ?
           <p className="admin-muted">No WhatsApp bills sent in this date range.</p>
         : <div className="admin-table-scroll">

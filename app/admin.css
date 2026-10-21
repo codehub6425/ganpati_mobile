@@ -9430,6 +9430,20 @@ a.ledger-inline-link {
   text-align: center;
 }
 
+.inv-row-actions.is-menu-only {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.inv-col-actions .inv-row-actions {
+  margin-left: auto;
+}
+
+.inv-product-card-actions--menu {
+  justify-content: flex-end;
+  padding-right: 8px;
+}
+
 @media (min-width: 640px) {
   .inv-brand-modal-grid {
     grid-template-columns: minmax(140px, 180px) 1fr;
@@ -9746,5 +9760,236 @@ a.ledger-inline-link {
     border-radius: 0;
     box-shadow: none;
     padding: 0;
+  }
+}
+
+/* List page skeleton loaders */
+.inv-skeleton {
+  display: block;
+  border-radius: 8px;
+  min-height: 12px;
+  background: linear-gradient(90deg, #e8ebf2 0%, #f4f6fa 45%, #e8ebf2 90%);
+  background-size: 200% 100%;
+  animation: inv-skeleton-shimmer 1.15s ease-in-out infinite;
+}
+
+@keyframes inv-skeleton-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+.inv-skeleton-list {
+  pointer-events: none;
+}
+
+.inv-skeleton-card {
+  display: grid;
+  grid-template-columns: 56px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 16px;
+  border-bottom: 1px solid #eef1f6;
+}
+
+.inv-skeleton-thumb {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  min-height: 56px;
+}
+
+.inv-skeleton-thumb.sm {
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.inv-skeleton-stack {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.inv-skeleton-line {
+  height: 14px;
+  min-height: 14px;
+}
+
+.inv-skeleton-line.w75 {
+  width: 75%;
+}
+
+.inv-skeleton-line.w70 {
+  width: 70%;
+}
+
+.inv-skeleton-line.w55 {
+  width: 55%;
+}
+
+.inv-skeleton-line.w50 {
+  width: 50%;
+}
+
+.inv-skeleton-line.w45 {
+  width: 45%;
+}
+
+.inv-skeleton-line.w40 {
+  width: 40%;
+}
+
+.inv-skeleton-line.w35 {
+  width: 35%;
+}
+
+.inv-skeleton-line.w25 {
+  width: 25%;
+}
+
+.inv-skeleton-line.w20 {
+  width: 20%;
+}
+
+.inv-skeleton-line.w15 {
+  width: 15%;
+}
+
+.inv-skeleton-line.w60 {
+  width: 60%;
+}
+
+.inv-skeleton-line.flex1 {
+  flex: 1;
+  min-width: 72px;
+  width: auto;
+}
+
+.inv-skeleton-table-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-bottom: 1px solid #eef1f6;
+}
+
+.inv-skeleton-pill {
+  width: 56px;
+  height: 24px;
+  border-radius: 999px;
+  min-height: 24px;
+  flex-shrink: 0;
+}
+
+.inv-skeleton-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  min-height: 36px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.inv-skeleton-table-wrap {
+  padding: 4px 0;
+}
+
+.inv-skeleton-stat-card {
+  height: 88px;
+  border-radius: 16px;
+  min-height: 88px;
+}
+
+.inv-skeleton-ledger-card {
+  display: block;
+  height: 76px;
+  min-height: 76px;
+  border-radius: 14px;
+}
+
+.inv-skeleton-ledger-entry-card {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid #eef1f6;
+  background: #fff;
+}
+
+.inv-skeleton-ledger-entry-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.inv-skeleton-line.w85 {
+  width: 85%;
+}
+
+.inv-skeleton-ledger-row {
+  gap: 12px;
+}
+
+.inv-skeleton-ledger-entries .inv-skeleton-table {
+  padding: 4px 0;
+}
+
+.inv-skeleton-module-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.inv-skeleton-module-card {
+  height: 104px;
+  border-radius: 16px;
+  min-height: 104px;
+}
+
+.inv-skeleton-dash {
+  display: grid;
+  gap: 8px;
+}
+
+.inv-skeleton-wa-row {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 10px;
+  padding: 12px 0;
+  border-bottom: 1px solid #eef1f6;
+}
+
+.inv-skeleton-table-only {
+  padding: 8px 16px 16px;
+}
+
+.inv-skeleton-rows {
+  display: grid;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.inv-skeleton-row-block {
+  display: grid;
+  gap: 8px;
+  padding: 12px 0;
+  border-bottom: 1px solid #eef1f6;
+}
+
+@media (max-width: 900px) {
+  .inv-skeleton-table-row .hide-narrow {
+    display: none;
+  }
+
+  .inv-skeleton-wa-row {
+    grid-template-columns: 1fr 1fr;
   }
 }

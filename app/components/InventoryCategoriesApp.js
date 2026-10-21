@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiUrl } from "@/lib/basePath";
+import ListSkeleton from "@/app/components/ListSkeleton";
 import { confirmAction, showError, showSuccess } from "@/lib/swal";
 
 const PAGE_SIZE = 15;
@@ -329,7 +330,7 @@ export default function InventoryCategoriesApp({ isAdmin = false }) {
         </div>
 
         {loading ?
-          <p className="admin-empty inv-pwa-loading">Loading…</p>
+          <ListSkeleton variant="catalog" rows={8} />
         : (
           <>
             <ul className="inv-product-cards inv-mobile-only" aria-label="Categories">

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import BrandImageUpload from "@/app/components/BrandImageUpload";
 import { apiUrl, productImageSrc } from "@/lib/basePath";
+import ListSkeleton from "@/app/components/ListSkeleton";
 import { confirmAction, showError, showSuccess } from "@/lib/swal";
 
 function BrandModal({ open, mode, brand, busy, isAdmin, onClose, onSubmit, onDelete }) {
@@ -331,7 +332,7 @@ export default function InventoryBrandsApp({ isAdmin = false }) {
         </div>
 
         {loading ?
-          <p className="admin-empty inv-pwa-loading">Loading brands…</p>
+          <ListSkeleton variant="catalog" rows={8} />
         : (
           <>
             <ul className="inv-product-cards inv-mobile-only" aria-label="Brands">

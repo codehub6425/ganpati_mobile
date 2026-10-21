@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import InvPageShell from "@/app/components/InvPageShell";
+import ListSkeleton from "@/app/components/ListSkeleton";
 import { apiUrl } from "@/lib/basePath";
 import { confirmAction, showError, showSuccess } from "@/lib/swal";
 
@@ -19,8 +20,10 @@ export default function InventoryQrStockListApp() {
   const [total, setTotal] = useState(0);
   const [status, setStatus] = useState("");
   const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
+    setLoading(true);
     const qs = new URLSearchParams();
     if (status) qs.set("status", status);
     if (search.trim()) qs.set("search", search.trim());
@@ -31,6 +34,7 @@ export default function InventoryQrStockListApp() {
       setUnits(data.units || []);
       setTotal(data.total || 0);
     }
+    setLoading(false);
   }, [status, search]);
 
   useEffect(() => {
@@ -90,6 +94,9 @@ export default function InventoryQrStockListApp() {
       </div>
 
       <div className="admin-card inv-table-wrap">
+        {loading ?
+          <ListSkeleton variant="table" rows={10} />
+        : <>
         <table className="inv-product-table">
           <thead>
             <tr>
@@ -140,6 +147,7 @@ export default function InventoryQrStockListApp() {
         <p className="inv-table-footer">
           Showing {units.length} of {total}
         </p>
+        </>}
       </div>
     </InvPageShell>
   );

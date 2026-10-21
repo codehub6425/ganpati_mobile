@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiUrl } from "@/lib/basePath";
 import { resolveStickerSize } from "@/lib/qr-sticker-sizes";
+import ListSkeleton from "@/app/components/ListSkeleton";
 import { showError, showSuccess } from "@/lib/swal";
 
 const PRESETS = [50, 100, 500, 1000, 5000];
@@ -424,7 +425,7 @@ export default function InventoryQrManagementApp() {
         </header>
 
         {loading ?
-          <p className="admin-empty inv-pwa-loading">Loading batches…</p>
+          <ListSkeleton variant="catalog" rows={6} />
         : (
           <>
             <ul className="inv-product-cards inv-mobile-only" aria-label="QR batches">

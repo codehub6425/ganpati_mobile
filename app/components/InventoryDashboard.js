@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import ListSkeleton from "@/app/components/ListSkeleton";
 import { apiUrl } from "@/lib/basePath";
 
 function formatMoney(n) {
@@ -128,7 +129,7 @@ export default function InventoryDashboard() {
         <p className="admin-empty">{error}</p>
       : null}
       {loading && !k ?
-        <p className="admin-empty">Loading dashboard…</p>
+        <ListSkeleton variant="dashboard" />
       : null}
 
       {k ?

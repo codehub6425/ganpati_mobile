@@ -46,6 +46,7 @@ import QrCodeScanner from "./QrCodeScanner";
 import SaleBillSheet from "./SaleBillSheet";
 import WhatsappBrandIcon from "./WhatsappBrandIcon";
 import { normalizeQrCode } from "@/lib/qr-code";
+import ListSkeleton from "@/app/components/ListSkeleton";
 
 const CUSTOMER_LINK_CATEGORIES = ["recharge", "money_transfer", "accessory", "repair"];
 
@@ -1531,6 +1532,7 @@ export default function DayBookApp({ userRole = "staff", userName = "", allowPas
   const [category, setCategory] = useState("recharge");
   const [form, setForm] = useState(EMPTY_FORM);
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [search, setSearch] = useState("");
   const [filterCategory, setFilterCategory] = useState("");
@@ -1589,6 +1591,7 @@ export default function DayBookApp({ userRole = "staff", userName = "", allowPas
 
   const loadRange = useCallback(async (from, to) => {
     setLoadError("");
+    setLoading(true);
     try {
       const qs = new URLSearchParams({ from, to });
       const res = await fetch(apiUrl(`/api/admin/day-books?${qs.toString()}`), {
@@ -1608,6 +1611,11 @@ export default function DayBookApp({ userRole = "staff", userName = "", allowPas
       setCommissionRules(data.commission_rules || []);
     } catch {
       setLoadError("Network error.");
+      setBook(null);
+      setEntries([]);
+      setTotals(null);
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -3212,7 +3220,9 @@ export default function DayBookApp({ userRole = "staff", userName = "", allowPas
         </p>
       : null}
 
-      {totals ? (
+      {loading ?
+        <ListSkeleton variant="ledger-summary" />
+      : totals ?
         <section className="ledger-summary-grid" aria-label="Today's totals">
           {LEDGER_CATEGORIES.map((cat) => {
             const meta = SUMMARY_META[cat];
@@ -3402,15 +3412,20 @@ export default function DayBookApp({ userRole = "staff", userName = "", allowPas
             </div>
           </article>
         </section>
-      ) : null}
+      : null}
 
       <section className="admin-card ledger-entries" id="ledger-entries">
         <div className="ledger-entries-head">
           <div>
             <h2 className="ledger-section-title">{entriesSectionTitle}</h2>
             <p className="ledger-entries-count">
-              Showing {filteredEntries.length} of {entries.length}
-              {filtersActive ? " · filters on" : ""}
+              {loading ?
+                <span className="inv-skeleton inv-skeleton-line w50" style={{ display: "inline-block", height: 14 }} aria-hidden="true" />
+              : <>
+                  Showing {filteredEntries.length} of {entries.length}
+                  {filtersActive ? " · filters on" : ""}
+                </>
+              }
             </p>
           </div>
           <div className="ledger-entries-head-actions">
@@ -3543,7 +3558,9 @@ export default function DayBookApp({ userRole = "staff", userName = "", allowPas
           </div>
         : null}
 
-        {filteredEntries.length === 0 ?
+        {loading ?
+          <ListSkeleton variant="ledger-entries" rows={8} />
+        : filteredEntries.length === 0 ?
           <div className="ledger-empty-state">
             <p className="ledger-empty-title">
               {entries.length === 0 ?
@@ -3805,7 +3822,7 @@ export default function DayBookApp({ userRole = "staff", userName = "", allowPas
             </div>
             <div className="ledger-wa-log-body">
               {waLogLoading ?
-                <p className="admin-muted">Loading…</p>
+                <ListSkeleton variant="wa-log" rows={6} />
               : waLogEvents.length === 0 ?
                 <p className="admin-muted">No WhatsApp bills sent for this entry yet.</p>
               : <ol className="ledger-wa-log-list">

@@ -1,12 +1,14 @@
 "use client";
 
 import InvPageShell from "@/app/components/InvPageShell";
+import ListSkeleton from "@/app/components/ListSkeleton";
 import { useCallback, useEffect, useState } from "react";
 import { apiUrl } from "@/lib/basePath";
 import { showError, showSuccess } from "@/lib/swal";
 
 export default function InventoryPurchasesApp() {
   const [purchases, setPurchases] = useState([]);
+  const [loadingPurchases, setLoadingPurchases] = useState(true);
   const [products, setProducts] = useState([]);
   const [form, setForm] = useState({
     supplier: "",
@@ -19,11 +21,13 @@ export default function InventoryPurchasesApp() {
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(() => {
+    setLoadingPurchases(true);
     fetch(apiUrl("/api/admin/inventory/purchases"), { credentials: "include" })
       .then((r) => r.json())
       .then((j) => {
         if (j.ok) setPurchases(j.purchases || []);
-      });
+      })
+      .finally(() => setLoadingPurchases(false));
   }, []);
 
   useEffect(() => {
@@ -121,6 +125,9 @@ export default function InventoryPurchasesApp() {
 
       <section className="admin-card">
         <h2>Recent purchases</h2>
+        {loadingPurchases ?
+          <ListSkeleton variant="rows" rows={5} />
+        : (
         <ul className="inv-purchase-list">
           {purchases.map((p) => (
             <li key={p.id}>
@@ -131,6 +138,7 @@ export default function InventoryPurchasesApp() {
             </li>
           ))}
         </ul>
+        )}
       </section>
     </InvPageShell>
   );

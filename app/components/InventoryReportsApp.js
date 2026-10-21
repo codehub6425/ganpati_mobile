@@ -1,6 +1,7 @@
 "use client";
 
 import InvPageShell from "@/app/components/InvPageShell";
+import ListSkeleton from "@/app/components/ListSkeleton";
 import { useEffect, useState } from "react";
 import { apiUrl } from "@/lib/basePath";
 
@@ -10,13 +11,16 @@ function formatMoney(n) {
 
 export default function InventoryReportsApp() {
   const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    setLoading(true);
     fetch(apiUrl("/api/admin/inventory/reports/stock"), { credentials: "include" })
       .then((r) => r.json())
       .then((j) => {
         if (j.ok) setData(j);
-      });
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   const k = data?.kpis;
@@ -32,7 +36,11 @@ export default function InventoryReportsApp() {
       }
     >
 
-      {k ?
+      {loading ?
+        <ListSkeleton variant="dashboard" />
+      : null}
+
+      {!loading && k ?
         <div className="inv-stat-grid">
           <article className="inv-stat-card inv-stat-blue">
             <div>
@@ -67,7 +75,7 @@ export default function InventoryReportsApp() {
         </div>
       : null}
 
-      {data?.low_stock?.length ?
+      {!loading && data?.low_stock?.length ?
         <section className="admin-card">
           <h2>Low stock</h2>
           <ul className="inv-mini-list">
