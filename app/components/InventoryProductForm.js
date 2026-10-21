@@ -11,6 +11,7 @@ import ProductLinkQrModal from "./ProductLinkQrModal";
 const EMPTY = {
   name: "",
   category_id: "",
+  brand_id: "",
   brand: "",
   sku: "",
   purchase_price: "",
@@ -37,6 +38,7 @@ export default function InventoryProductForm({ productId = null }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [categories, setCategories] = useState([]);
+  const [brands, setBrands] = useState([]);
   const [form, setForm] = useState(EMPTY);
   const [busy, setBusy] = useState(false);
   const [loadingProduct, setLoadingProduct] = useState(Boolean(productId));
@@ -60,6 +62,11 @@ export default function InventoryProductForm({ productId = null }) {
       .then((r) => r.json())
       .then((j) => {
         if (j.ok) setCategories(j.categories || []);
+      });
+    fetch(apiUrl("/api/admin/inventory/brands"), { credentials: "include" })
+      .then((r) => r.json())
+      .then((j) => {
+        if (j.ok) setBrands((j.brands || []).filter((b) => b.status === "active"));
       });
   }, []);
 
@@ -85,6 +92,7 @@ export default function InventoryProductForm({ productId = null }) {
         setForm({
           name: p.name || "",
           category_id: String(p.category_id || ""),
+          brand_id: p.brand_id ? String(p.brand_id) : "",
           brand: p.brand || "",
           sku: p.sku || "",
           purchase_price: String(p.purchase_price ?? ""),
@@ -147,6 +155,7 @@ export default function InventoryProductForm({ productId = null }) {
         discount_pct: form.discount_pct === "" ? null : Number(form.discount_pct),
         min_stock_level: Number(form.min_stock_level) || 0,
         image_url: String(form.image_url_external || "").trim() || null,
+        brand_id: form.brand_id ? Number(form.brand_id) : null,
       };
       delete payload.image_url_external;
       if (clearProductImage) payload.clear_product_image = true;
@@ -275,6 +284,21 @@ export default function InventoryProductForm({ productId = null }) {
           </label>
 
           <label>
+            <span>Brand</span>
+            <select value={form.brand_id} onChange={(e) => onChange("brand_id", e.target.value)}>
+              <option value="">— No brand —</option>
+              {brands.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+            <span className="inv-field-hint">
+              <Link href="/admin/inventory/brands">Manage brands</Link>
+            </span>
+          </label>
+
+          <label>
             <span>Tracking type</span>
             <select value={form.product_type} onChange={(e) => onChange("product_type", e.target.value)}>
               <option value="quantity">Quantity (bulk count)</option>
@@ -361,10 +385,6 @@ export default function InventoryProductForm({ productId = null }) {
         <details className="inv-simple-more">
           <summary>More fields (optional)</summary>
           <div className="inv-simple-form-grid">
-            <label>
-              <span>Brand</span>
-              <input value={form.brand} onChange={(e) => onChange("brand", e.target.value)} />
-            </label>
             <label>
               <span>SKU / code</span>
               <input value={form.sku} onChange={(e) => onChange("sku", e.target.value)} />

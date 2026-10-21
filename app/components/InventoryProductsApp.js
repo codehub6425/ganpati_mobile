@@ -67,9 +67,12 @@ export default function InventoryProductsApp() {
   const searchParams = useSearchParams();
   const urlEditId = searchParams.get("edit");
   const lowStockUrl = searchParams.get("low_stock") === "1";
+  const urlBrandId = searchParams.get("brand_id") || "";
 
   const [categories, setCategories] = useState([]);
   const [brandOptions, setBrandOptions] = useState([]);
+  const [brandCatalog, setBrandCatalog] = useState([]);
+  const [brandIdFilter, setBrandIdFilter] = useState(urlBrandId);
   const [products, setProducts] = useState([]);
   const [search, setSearch] = useState("");
   const [categoryId, setCategoryId] = useState("");
@@ -97,28 +100,27 @@ export default function InventoryProductsApp() {
       .then((j) => {
         if (j.ok) setCategories(j.categories || []);
       });
-    fetch(apiUrl("/api/admin/inventory/products?limit=500"), { credentials: "include" })
+    fetch(apiUrl("/api/admin/inventory/brands"), { credentials: "include" })
       .then((r) => r.json())
       .then((j) => {
         if (j.ok) {
-          const brands = [
-            ...new Set(
-              (j.products || [])
-                .map((p) => (p.brand || "").trim())
-                .filter(Boolean)
-            ),
-          ].sort((a, b) => a.localeCompare(b));
-          setBrandOptions(brands);
+          setBrandCatalog(j.brands || []);
+          setBrandOptions((j.brands || []).map((b) => b.name).sort((a, b) => a.localeCompare(b)));
         }
       });
   }, []);
+
+  useEffect(() => {
+    setBrandIdFilter(urlBrandId);
+  }, [urlBrandId]);
 
   const loadProducts = useCallback(async () => {
     setLoading(true);
     const qs = new URLSearchParams();
     if (search.trim()) qs.set("search", search.trim());
     if (categoryId) qs.set("category_id", categoryId);
-    if (brand) qs.set("brand", brand);
+    if (brandIdFilter) qs.set("brand_id", brandIdFilter);
+    else if (brand) qs.set("brand", brand);
     if (statusFilter) qs.set("status", statusFilter);
     if (lowStockOnly) qs.set("low_stock", "1");
     if (productTypeFilter) qs.set("product_type", productTypeFilter);
@@ -135,7 +137,7 @@ export default function InventoryProductsApp() {
     setError("");
     setPage(1);
     setMobileVisibleCount(MOBILE_BATCH);
-  }, [search, categoryId, brand, statusFilter, lowStockOnly, productTypeFilter]);
+  }, [search, categoryId, brand, brandIdFilter, statusFilter, lowStockOnly, productTypeFilter]);
 
   useEffect(() => {
     const t = setTimeout(() => loadProducts(), search ? 280 : 0);
@@ -174,6 +176,7 @@ export default function InventoryProductsApp() {
   const activeFilterCount = [
     categoryId,
     brand,
+    brandIdFilter,
     statusFilter,
     productTypeFilter,
     lowStockOnly,
@@ -215,6 +218,7 @@ export default function InventoryProductsApp() {
   function clearFilters() {
     setCategoryId("");
     setBrand("");
+    setBrandIdFilter("");
     setStatusFilter("");
     setProductTypeFilter("");
     setLowStockOnly(false);
@@ -243,7 +247,16 @@ export default function InventoryProductsApp() {
         <option value="active">Active</option>
         <option value="inactive">Inactive</option>
       </select>
-      {brandOptions.length ?
+      {brandCatalog.length ?
+        <select value={brandIdFilter} onChange={(e) => setBrandIdFilter(e.target.value)} aria-label="Brand">
+          <option value="">All brands</option>
+          {brandCatalog.map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.name}
+            </option>
+          ))}
+        </select>
+      : brandOptions.length ?
         <select value={brand} onChange={(e) => setBrand(e.target.value)} aria-label="Brand">
           <option value="">All brands</option>
           {brandOptions.map((b) => (

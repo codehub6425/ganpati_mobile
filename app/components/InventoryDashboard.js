@@ -24,6 +24,13 @@ const MODULES = [
     accent: "purple",
   },
   {
+    href: "/admin/inventory/brands",
+    title: "Brands",
+    desc: "JBL, boAt, etc. — logo + link many products",
+    icon: "™",
+    accent: "purple",
+  },
+  {
     href: "/admin/inventory/qr",
     title: "QR management",
     desc: "Print stickers → link at stock-in → scan to sell",

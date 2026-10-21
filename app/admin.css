@@ -9347,6 +9347,96 @@ a.ledger-inline-link {
   flex: 1 1 200px;
 }
 
+.inv-brand-list-logo {
+  object-fit: contain;
+  background: #fff;
+}
+
+.inv-brand-modal-card {
+  width: min(580px, 100%);
+  max-height: 90dvh;
+}
+
+.inv-brand-modal-sub {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #5b6170;
+  line-height: 1.4;
+  max-width: 36em;
+}
+
+.inv-brand-modal-form {
+  display: grid;
+  gap: 12px;
+}
+
+.inv-brand-modal-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.inv-brand-modal-logo .inv-product-image-upload {
+  margin: 0;
+  padding: 12px;
+  background: #f8f9fc;
+  border: 1px solid #e8ebf2;
+  border-radius: 14px;
+}
+
+.inv-brand-modal-logo .inv-product-image-upload-head {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.inv-brand-modal-logo .inv-product-image-preview {
+  width: 112px;
+  height: 112px;
+}
+
+.inv-brand-modal-fields {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
+.inv-brand-modal-fields .inv-cat-modal-label select {
+  min-height: 46px;
+  padding: 0 12px;
+  border: 1px solid #d7dce6;
+  border-radius: 12px;
+  font: inherit;
+  font-size: 16px;
+  background: #fff;
+}
+
+.inv-brand-card-main {
+  text-align: left;
+  border: none;
+  background: transparent;
+  width: 100%;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.inv-brand-card-logo {
+  object-fit: contain;
+  background: #fff;
+}
+
+.inv-brand-empty {
+  padding: 28px 16px;
+  text-align: center;
+}
+
+@media (min-width: 640px) {
+  .inv-brand-modal-grid {
+    grid-template-columns: minmax(140px, 180px) 1fr;
+    align-items: start;
+  }
+}
+
 .inv-link-form,
 .inv-purchase-form,
 .inv-finance-form {

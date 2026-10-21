@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { ensureLeadsTable, getPool } from "@/lib/db";
 import { formatProductRow, validateProductInput } from "@/lib/inventory";
+import { resolveProductBrandFields } from "@/lib/inventory-brands.js";
 import { applyProductImageFields } from "@/lib/product-image-upload.js";
 import { isStaffUser } from "@/lib/roles";
 
@@ -24,6 +25,7 @@ export async function GET(request) {
   const lowStock = params.get("low_stock") === "1";
   const forSale = params.get("for_sale") === "1";
   const productType = params.get("product_type");
+  const brandId = params.get("brand_id");
 
   try {
     await ensureLeadsTable();
@@ -48,6 +50,10 @@ export async function GET(request) {
     if (productType === "quantity" || productType === "serialized") {
       where.push("p.product_type = ?");
       args.push(productType);
+    }
+    if (brandId) {
+      where.push("p.brand_id = ?");
+      args.push(Number(brandId));
     }
     if (search) {
       where.push("(p.name LIKE ? OR p.brand LIKE ? OR p.sku LIKE ?)");
@@ -91,14 +97,27 @@ export async function POST(request) {
     const productType = d.product_type || "quantity";
     const initialQty =
       productType === "serialized" ? 0 : Math.max(0, Math.floor(Number(body.qty_on_hand) || 0));
+
+    let brandId = null;
+    let brandName = d.brand;
+    if (body.brand_id !== undefined) {
+      const resolved = await resolveProductBrandFields(db, body.brand_id);
+      if (resolved.error) {
+        return NextResponse.json({ ok: false, message: resolved.error }, { status: 400 });
+      }
+      brandId = resolved.brand_id;
+      brandName = resolved.brand;
+    }
+
     const [result] = await db.execute(
       `INSERT INTO products
-        (category_id, name, brand, sku, purchase_price, mrp, selling_price, discount_pct, qty_on_hand, min_stock_level, supplier, image_url, warranty_text, status, product_type)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (category_id, name, brand_id, brand, sku, purchase_price, mrp, selling_price, discount_pct, qty_on_hand, min_stock_level, supplier, image_url, warranty_text, status, product_type)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         d.category_id,
         d.name,
-        d.brand,
+        brandId,
+        brandName,
         d.sku,
         d.purchase_price,
         d.mrp,

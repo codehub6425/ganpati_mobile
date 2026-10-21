@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { ensureLeadsTable, getPool } from "@/lib/db";
 import { formatProductRow, validateProductInput } from "@/lib/inventory";
+import { resolveProductBrandFields } from "@/lib/inventory-brands.js";
 import { deleteMediaKey } from "@/lib/media-storage.js";
 import { applyProductImageFields } from "@/lib/product-image-upload.js";
 import { isStaffUser } from "@/lib/roles";
@@ -57,7 +58,8 @@ export async function PATCH(request, { params }) {
   const values = [];
   for (const [key, val] of Object.entries(d)) {
     if (val === undefined) continue;
-    if (key === "image_storage_key") continue;
+    if (key === "image_storage_key" || key === "brand_id") continue;
+    if (key === "brand" && body.brand_id !== undefined) continue;
     fields.push(`${key} = ?`);
     values.push(val);
   }
@@ -74,6 +76,15 @@ export async function PATCH(request, { params }) {
     if (imageApply.image_storage_key !== undefined) {
       fields.push("image_storage_key = ?");
       values.push(imageApply.image_storage_key);
+    }
+
+    if (body.brand_id !== undefined) {
+      const resolved = await resolveProductBrandFields(db, body.brand_id);
+      if (resolved.error) {
+        return NextResponse.json({ ok: false, message: resolved.error }, { status: 400 });
+      }
+      fields.push("brand_id = ?", "brand = ?");
+      values.push(resolved.brand_id, resolved.brand);
     }
 
     if (!fields.length) {

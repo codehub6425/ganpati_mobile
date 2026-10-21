@@ -9,6 +9,7 @@ const INVENTORY_SUB = [
   { href: "/admin/inventory", label: "Dashboard" },
   { href: "/admin/inventory/products", label: "Products" },
   { href: "/admin/inventory/categories", label: "Categories" },
+  { href: "/admin/inventory/brands", label: "Brands" },
   { href: "/admin/inventory/qr", label: "QR management" },
   { href: "/admin/inventory/stock/add", label: "Add stock" },
   { href: "/admin/inventory/stock", label: "Stock (QR)" },
@@ -43,6 +44,7 @@ function inventoryPageTitle(pathname) {
   if (pathname.match(/^\/admin\/inventory\/products\/[^/]+$/)) return "Edit product";
   if (pathname.startsWith("/admin/inventory/products")) return "Products";
   if (pathname.startsWith("/admin/inventory/categories")) return "Categories";
+  if (pathname.startsWith("/admin/inventory/brands")) return "Brands";
   if (pathname.startsWith("/admin/inventory/qr")) return "QR management";
   if (pathname.startsWith("/admin/inventory/stock/add")) return "Add stock";
   if (pathname.startsWith("/admin/inventory/stock")) return "Stock (QR)";
