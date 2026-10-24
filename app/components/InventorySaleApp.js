@@ -23,6 +23,13 @@ export default function InventorySaleApp() {
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [notes, setNotes] = useState("");
+  const [salePayment, setSalePayment] = useState({
+    payment_mode: "full",
+    amount_received: "",
+    due_preset: "in_7_days",
+    custom_due_date: "",
+    due_notes: "",
+  });
   const [busy, setBusy] = useState(false);
   const [completedSale, setCompletedSale] = useState(null);
 
@@ -95,13 +102,7 @@ export default function InventorySaleApp() {
       showError("Add at least one product.");
       return;
     }
-    setBusy(true);
-    try {
-      const res = await fetch(apiUrl("/api/admin/inventory/sales"), {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+
     const payMode = salePayment.payment_mode || "full";
     if (payMode !== "full") {
       const phone = customerPhone.replace(/\D/g, "").slice(-10);
@@ -110,6 +111,7 @@ export default function InventorySaleApp() {
         return;
       }
     }
+
     setBusy(true);
     try {
       if (payMode !== "full") {
@@ -119,7 +121,6 @@ export default function InventorySaleApp() {
           qty: l.qty,
           product_id: l.product_id,
         }));
-        const billTotal = grandTotal;
         const res = await fetch(apiUrl("/api/admin/customer-dues"), {
           method: "POST",
           credentials: "include",
@@ -128,7 +129,7 @@ export default function InventorySaleApp() {
             book_date: todayDateString(),
             payment_mode: payMode,
             due_type: payMode === "advance" ? "advance_order" : "credit_sale",
-            bill_total: billTotal,
+            bill_total: grandTotal,
             amount_received:
               payMode === "later" ? 0
               : payMode === "partial" ? salePayment.amount_received || 0
@@ -137,8 +138,8 @@ export default function InventorySaleApp() {
             custom_due_date: salePayment.custom_due_date,
             due_notes: salePayment.due_notes,
             payment_method: paymentMethod,
-            customer_phone: customerPhone,
-            customer_name: customerName,
+            customer_phone: phoneFromCustomer(),
+            customer_name: customerName.trim(),
             ledger_category: "accessory",
             lines: linePayload,
           }),
@@ -150,11 +151,30 @@ export default function InventorySaleApp() {
         }
         setLines([]);
         setCartDiscount("");
-        showSuccess("Saved with customer due. Open Customer dues to collect balance or deliver advance.");
+        setSalePayment({
+          payment_mode: "full",
+          amount_received: "",
+          due_preset: "in_7_days",
+          custom_due_date: "",
+          due_notes: "",
+        });
+        showSuccess(
+          "Saved with customer due. Open Customer dues to collect balance or deliver advance."
+        );
         return;
       }
+
+      const res = await fetch(apiUrl("/api/admin/inventory/sales"), {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sale_date: todayDateString(),
+          lines: lines.map((l) => ({
+            product_id: l.product_id,
             qty: l.qty,
             line_discount: l.line_discount || 0,
+            unit_selling_price: l.unit_selling_price,
           })),
           cart_discount: cartDisc,
           payment_method: paymentMethod,
@@ -172,6 +192,10 @@ export default function InventorySaleApp() {
     } finally {
       setBusy(false);
     }
+  }
+
+  function phoneFromCustomer() {
+    return customerPhone.replace(/\D/g, "").slice(-10);
   }
 
   if (completedSale) {
@@ -287,14 +311,6 @@ export default function InventorySaleApp() {
               onChange={(e) => setCartDiscount(e.target.value)}
             />
           </label>
-          <label>
-            <span>Payment</span>
-            <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
-              <option value="cash">Cash</option>
-              <option value="upi">UPI</option>
-              <option value="sbi">SBI</option>
-              <option value="boi">BOI</option>
-
           {grandTotal > 0 ?
             <CustomerSalePaymentPanel
               billTotal={grandTotal}
@@ -304,6 +320,13 @@ export default function InventorySaleApp() {
             />
           : null}
 
+          <label>
+            <span>Paid via</span>
+            <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
+              <option value="cash">Cash</option>
+              <option value="upi">UPI</option>
+              <option value="sbi">SBI</option>
+              <option value="boi">BOI</option>
               <option value="other">Other</option>
             </select>
           </label>
