@@ -3,10 +3,12 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { apiUrl } from "@/lib/basePath";
-import { showError } from "@/lib/swal";
+import { showError, showSuccess } from "@/lib/swal";
 import InvPageShell from "@/app/components/InvPageShell";
 import InventorySaleInvoice from "./InventorySaleInvoice";
 import { saleBillFromInventorySale } from "@/lib/sale-bill";
+import { todayDateString } from "@/lib/ledger";
+import CustomerSalePaymentPanel from "./CustomerSalePaymentPanel";
 
 function formatMoney(n) {
   return new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(Number(n) || 0);
@@ -100,8 +102,57 @@ export default function InventorySaleApp() {
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          lines: lines.map((l) => ({
-            product_id: l.product_id,
+    const payMode = salePayment.payment_mode || "full";
+    if (payMode !== "full") {
+      const phone = customerPhone.replace(/\D/g, "").slice(-10);
+      if (phone.length !== 10 || !customerName.trim()) {
+        showError("Customer name and 10-digit mobile are required for due / advance sales.");
+        return;
+      }
+    }
+    setBusy(true);
+    try {
+      if (payMode !== "full") {
+        const linePayload = lines.map((l) => ({
+          description: l.name,
+          line_total: l.unit_selling_price * l.qty - (Number(l.line_discount) || 0),
+          qty: l.qty,
+          product_id: l.product_id,
+        }));
+        const billTotal = grandTotal;
+        const res = await fetch(apiUrl("/api/admin/customer-dues"), {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            book_date: todayDateString(),
+            payment_mode: payMode,
+            due_type: payMode === "advance" ? "advance_order" : "credit_sale",
+            bill_total: billTotal,
+            amount_received:
+              payMode === "later" ? 0
+              : payMode === "partial" ? salePayment.amount_received || 0
+              : salePayment.amount_received || 0,
+            due_preset: salePayment.due_preset,
+            custom_due_date: salePayment.custom_due_date,
+            due_notes: salePayment.due_notes,
+            payment_method: paymentMethod,
+            customer_phone: customerPhone,
+            customer_name: customerName,
+            ledger_category: "accessory",
+            lines: linePayload,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          showError(data.message || "Sale failed.");
+          return;
+        }
+        setLines([]);
+        setCartDiscount("");
+        showSuccess("Saved with customer due. Open Customer dues to collect balance or deliver advance.");
+        return;
+      }
             qty: l.qty,
             line_discount: l.line_discount || 0,
           })),
@@ -243,6 +294,16 @@ export default function InventorySaleApp() {
               <option value="upi">UPI</option>
               <option value="sbi">SBI</option>
               <option value="boi">BOI</option>
+
+          {grandTotal > 0 ?
+            <CustomerSalePaymentPanel
+              billTotal={grandTotal}
+              bookDateIso={todayDateString()}
+              value={salePayment}
+              onChange={setSalePayment}
+            />
+          : null}
+
               <option value="other">Other</option>
             </select>
           </label>

@@ -33,16 +33,6 @@ export async function POST(request) {
   const conn = await getPool().getConnection();
   try {
     await ensureLeadsTable();
-    const [ptype] = await conn.query("SELECT product_type FROM products WHERE id = ? LIMIT 1", [productId]);
-    if (ptype[0]?.product_type === "serialized") {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: "Serialized products use QR scan → add stock. Open Inventory → Add stock.",
-        },
-        { status: 400 }
-      );
-    }
     await conn.beginTransaction();
     const nextQty = await applyStockMovement(conn, {
       productId,

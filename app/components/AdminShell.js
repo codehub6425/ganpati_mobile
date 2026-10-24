@@ -5,19 +5,46 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { apiUrl } from "@/lib/basePath";
 
-const INVENTORY_SUB = [
-  { href: "/admin/inventory", label: "Dashboard" },
-  { href: "/admin/inventory/products", label: "Products" },
-  { href: "/admin/inventory/categories", label: "Categories" },
-  { href: "/admin/inventory/brands", label: "Brands" },
-  { href: "/admin/inventory/qr", label: "QR management" },
-  { href: "/admin/inventory/stock/add", label: "Add stock" },
-  { href: "/admin/inventory/stock", label: "Stock (QR)" },
-  { href: "/admin/inventory/scan", label: "Scan" },
-  { href: "/admin/inventory/sales/new", label: "Sales" },
-  { href: "/admin/inventory/purchases", label: "Purchases" },
-  { href: "/admin/inventory/requests", label: "Requests" },
-  { href: "/admin/inventory/reports", label: "Reports" },
+const INVENTORY_NAV_GROUPS = [
+  {
+    label: "Overview",
+    items: [{ href: "/admin/inventory", label: "Dashboard" }],
+  },
+  {
+    label: "Catalog",
+    items: [
+      { href: "/admin/inventory/products", label: "Products" },
+      { href: "/admin/inventory/categories", label: "Categories" },
+      { href: "/admin/inventory/brands", label: "Brands" },
+    ],
+  },
+  {
+    label: "Stock & QR",
+    items: [
+      { href: "/admin/inventory/qr", label: "QR management" },
+      { href: "/admin/inventory/stock/add", label: "Add stock" },
+      { href: "/admin/inventory/stock", label: "Stock (QR)" },
+      { href: "/admin/inventory/scan", label: "Scan" },
+    ],
+  },
+  {
+    label: "Sales",
+    items: [{ href: "/admin/inventory/sales/new", label: "Sales" }],
+  },
+  {
+    label: "Buying",
+    items: [
+      { href: "/admin/inventory/purchases", label: "Purchases" },
+      { href: "/admin/inventory/vendors", label: "Vendor dues" },
+    ],
+  },
+  {
+    label: "More",
+    items: [
+      { href: "/admin/inventory/requests", label: "Requests" },
+      { href: "/admin/inventory/reports", label: "Reports" },
+    ],
+  },
 ];
 
 const NAV = [
@@ -51,6 +78,7 @@ function inventoryPageTitle(pathname) {
   if (pathname.startsWith("/admin/inventory/scan")) return "Scan product";
   if (pathname.startsWith("/admin/inventory/sales")) return "Sales";
   if (pathname.startsWith("/admin/inventory/purchases")) return "Purchases";
+  if (pathname.startsWith("/admin/inventory/vendors")) return "Vendor dues";
   if (pathname.startsWith("/admin/inventory/requests")) return "Customer requests";
   if (pathname.startsWith("/admin/inventory/reports")) return "Reports";
   if (pathname.startsWith("/admin/inventory")) return "Inventory";
@@ -161,15 +189,20 @@ export default function AdminShell({ children, user = null }) {
                   </button>
                   {invOpen ?
                     <div className="admin-nav-sub">
-                      {INVENTORY_SUB.map((sub) => (
-                        <Link
-                          key={sub.href}
-                          href={sub.href}
-                          className={`admin-nav-sub-item${isInventorySubActive(sub.href) ? " is-active" : ""}`}
-                          onClick={() => setOpen(false)}
-                        >
-                          {sub.label}
-                        </Link>
+                      {INVENTORY_NAV_GROUPS.map((group) => (
+                        <div className="admin-nav-sub-group" key={group.label}>
+                          <p className="admin-nav-sub-label">{group.label}</p>
+                          {group.items.map((sub) => (
+                            <Link
+                              key={sub.href}
+                              href={sub.href}
+                              className={`admin-nav-sub-item${isInventorySubActive(sub.href) ? " is-active" : ""}`}
+                              onClick={() => setOpen(false)}
+                            >
+                              {sub.label}
+                            </Link>
+                          ))}
+                        </div>
                       ))}
                     </div>
                   : null}

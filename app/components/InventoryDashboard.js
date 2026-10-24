@@ -9,11 +9,35 @@ function formatMoney(n) {
   return new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(Number(n) || 0);
 }
 
+const QUICK_ACTIONS = [
+  { href: "/admin/inventory/products/new", label: "Add product", primary: true },
+  { href: "/admin/inventory/purchases#record-purchase", label: "Record purchase", primary: true },
+  { href: "/admin/inventory/stock/add", label: "Add stock (QR)", primary: true },
+  { href: "/admin/inventory/scan", label: "Scan to sell", primary: true },
+  { href: "/admin/inventory/sales/new", label: "New sale", primary: true },
+  { href: "/admin/inventory/products", label: "Product list", primary: false },
+  { href: "/admin/inventory/vendors", label: "Pay vendor", primary: false },
+];
+
+const SECONDARY_CHIPS = [
+  { href: "/admin/inventory/products?low_stock=1", label: "Low stock" },
+  { href: "/admin/inventory/qr", label: "Print QR" },
+  { href: "/admin/inventory/requests", label: "Requests" },
+  { href: "/admin/inventory/reports", label: "Reports" },
+];
+
 const MODULES = [
+  {
+    href: "/admin/inventory/products/new",
+    title: "Add product",
+    desc: "New catalog item — qty or QR serialized",
+    icon: "➕",
+    accent: "blue",
+  },
   {
     href: "/admin/inventory/products",
     title: "Products",
-    desc: "Catalog, pricing, stock levels, add & edit",
+    desc: "Catalog, pricing, stock levels",
     icon: "📦",
     accent: "blue",
   },
@@ -69,8 +93,15 @@ const MODULES = [
   {
     href: "/admin/inventory/purchases",
     title: "Purchases",
-    desc: "Supplier purchases and stock-in",
+    desc: "Multi-line bills and stock-in",
     icon: "🛒",
+    accent: "purple",
+  },
+  {
+    href: "/admin/inventory/vendors",
+    title: "Vendor dues",
+    desc: "Balance due, bill upload, pay vendor",
+    icon: "🧾",
     accent: "purple",
   },
   {
@@ -116,14 +147,57 @@ export default function InventoryDashboard() {
           <p>Print stickers, link them at stock-in, then scan to sell. Quantity items still use New sale.</p>
         </div>
         <div className="inv-dash-head-actions">
-          <Link href="/admin/inventory/sales/new" className="admin-btn">
-            New sale
+          <Link href="/admin/inventory/products/new" className="admin-btn">
+            Add product
           </Link>
-          <Link href="/admin/inventory/products" className="admin-btn admin-btn-secondary">
-            Product inventory
+          <Link href="/admin/inventory/sales/new" className="admin-btn admin-btn-secondary">
+            New sale
           </Link>
         </div>
       </header>
+
+      <section className="inv-quick-actions" aria-label="Quick actions">
+        <h2 className="inv-dash-section-title">Quick actions</h2>
+        <div className="inv-quick-actions-primary">
+          {QUICK_ACTIONS.filter((a) => a.primary).map((a) => (
+            <Link key={a.href} href={a.href} className="admin-btn inv-quick-action-btn">
+              {a.label}
+            </Link>
+          ))}
+        </div>
+        <div className="inv-quick-actions-secondary">
+          {QUICK_ACTIONS.filter((a) => !a.primary).map((a) => (
+            <Link key={a.href} href={a.href} className="inv-quick-chip">
+              {a.label}
+            </Link>
+          ))}
+          {SECONDARY_CHIPS.map((a) => (
+            <Link key={a.href} href={a.href} className="inv-quick-chip is-muted">
+              {a.label}
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      {data?.last_purchase ?
+        <section className="admin-card inv-last-purchase-card">
+          <div>
+            <h2 className="inv-dash-section-title">Last vendor bill</h2>
+            <p className="inv-last-purchase-meta">
+              <strong>{data.last_purchase.supplier}</strong>
+              <span>
+                {data.last_purchase.purchase_date} · ₹{formatMoney(data.last_purchase.grand_total)}
+                {Number(data.last_purchase.balance_due) > 0 ?
+                  ` · Due ₹${formatMoney(data.last_purchase.balance_due)}`
+                : " · Paid"}
+              </span>
+            </p>
+          </div>
+          <Link href="/admin/inventory/purchases" className="admin-btn admin-btn-secondary">
+            View purchases
+          </Link>
+        </section>
+      : null}
 
       {error ?
         <p className="admin-empty">{error}</p>
@@ -199,6 +273,34 @@ export default function InventoryDashboard() {
                 <small>At purchase price</small>
               </div>
             </article>
+            {Number(k.vendor_due_total) > 0 ?
+              <article className="inv-stat-card inv-stat-amber">
+                <div className="inv-stat-icon" aria-hidden="true">
+                  🧾
+                </div>
+                <div>
+                  <span>Vendor due</span>
+                  <strong>₹ {formatMoney(k.vendor_due_total)}</strong>
+                  <small>
+                    <Link href="/admin/inventory/vendors">Pay vendor</Link>
+                  </small>
+                </div>
+              </article>
+            : null}
+            {Number(k.customer_due_total) > 0 ?
+              <article className="inv-stat-card inv-stat-amber">
+                <div className="inv-stat-icon" aria-hidden="true">
+                  👤
+                </div>
+                <div>
+                  <span>Customer due</span>
+                  <strong>₹ {formatMoney(k.customer_due_total)}</strong>
+                  <small>
+                    <Link href="/admin/accounting/customer-dues">Collect</Link>
+                  </small>
+                </div>
+              </article>
+            : null}
           </div>
 
           <div className="inv-stat-grid inv-dash-kpi-secondary">

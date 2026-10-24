@@ -14,6 +14,7 @@ export default function InventoryAddStockScanApp() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialCode = normalizeQrCode(searchParams.get("code") || "");
+  const urlProductId = searchParams.get("product_id") || "";
   const [code, setCode] = useState(initialCode);
   const [lookup, setLookup] = useState(null);
   const [products, setProducts] = useState([]);

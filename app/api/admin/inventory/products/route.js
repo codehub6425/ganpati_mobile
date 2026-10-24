@@ -23,6 +23,7 @@ export async function GET(request) {
   const status = params.get("status");
   const brand = String(params.get("brand") || "").trim();
   const lowStock = params.get("low_stock") === "1";
+  const outOfStock = params.get("out_of_stock") === "1";
   const forSale = params.get("for_sale") === "1";
   const productType = params.get("product_type");
   const brandId = params.get("brand_id");
@@ -62,6 +63,9 @@ export async function GET(request) {
     }
     if (lowStock) {
       where.push("p.status = 'active' AND p.qty_on_hand > 0 AND p.qty_on_hand <= p.min_stock_level");
+    }
+    if (outOfStock) {
+      where.push("p.status = 'active' AND p.qty_on_hand <= 0");
     }
     const sql = `
       SELECT p.*, c.name AS category_name

@@ -15,7 +15,7 @@ function MenuLinesIcon() {
   );
 }
 
-export default function ProductRowActions({ product, onLinkQr, onDelete }) {
+export default function ProductRowActions({ product, onLinkQr, onAddStock, onDelete }) {
   const btnRef = useRef(null);
   const menuRef = useRef(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -89,11 +89,24 @@ export default function ProductRowActions({ product, onLinkQr, onDelete }) {
             role="menuitem"
             onClick={(e) => {
               closeMenu();
-              onLinkQr(product, e);
+              onAddStock(product, e);
             }}
           >
-            Link QR
+            Add stock
           </button>
+          {product.product_type === "serialized" ?
+            <button
+              type="button"
+              className="admin-action-item"
+              role="menuitem"
+              onClick={(e) => {
+                closeMenu();
+                onLinkQr(product, e);
+              }}
+            >
+              Link QR
+            </button>
+          : null}
           <Link
             href={editHref}
             className="admin-action-item"

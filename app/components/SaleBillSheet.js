@@ -95,8 +95,19 @@ export default function SaleBillSheet({ bill }) {
       <div className="ledger-sale-bill-totals">
         <p>Payment: {paymentLabel(bill.payment_method)}</p>
         <p>
-          <strong>Total ₹{formatBillMoney(total)}</strong>
+          <strong>Total ₹{formatBillMoney(bill.bill_total != null ? bill.bill_total : total)}</strong>
         </p>
+        {bill.balance_due != null && Number(bill.balance_due) > 0 ?
+          <>
+            <p>Paid today: ₹{formatBillMoney(bill.amount_paid ?? total)}</p>
+            <p>
+              <strong>Balance due: ₹{formatBillMoney(bill.balance_due)}</strong>
+            </p>
+            {bill.due_date ?
+              <p>Due by {formatAdminDateFromIso(bill.due_date, { day: "numeric", month: "short", year: "numeric" })}</p>
+            : null}
+          </>
+        : null}
       </div>
       <p className="ledger-sale-bill-thanks">
         {bill.kind === "repair"

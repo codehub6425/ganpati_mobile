@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { ensureLeadsTable, getPool } from "@/lib/db";
 import { formatProductRow, getDashboardKpis } from "@/lib/inventory";
+import { getLastPurchase } from "@/lib/inventory-suppliers";
 import { isStaffUser } from "@/lib/roles";
 
 async function requireStaff() {
@@ -39,6 +40,7 @@ export async function GET() {
       ok: true,
       kpis,
       low_stock: lowStock.map(formatProductRow),
+      last_purchase,
       out_of_stock: outOfStock.map(formatProductRow),
     });
   } catch (error) {

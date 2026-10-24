@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { apiUrl } from "@/lib/basePath";
+import { apiUrl, productImageSrc } from "@/lib/basePath";
 import { commissionEligible, suggestCommission } from "@/lib/commission";
 import {
   adminShiftIsoDays,
@@ -31,6 +31,7 @@ import { PHONE_BRANDS } from "@/lib/brands";
 import {
   computeWarrantyUntil,
   formatWarrantyUntilLabel,
+  formatWarrantyMonthChoiceLabel,
   WARRANTY_MONTH_CHOICES,
 } from "@/lib/warranty";
 import {
@@ -38,7 +39,7 @@ import {
   relatedSaleEntries,
   saleBillFromEntries,
 } from "@/lib/sale-bill";
-import { confirmAction, showError, showSuccess } from "@/lib/swal";
+import { confirmAction, showError, showFormError, showSuccess } from "@/lib/swal";
 import DateRangeFilter from "./DateRangeFilter";
 import LeadPicker from "./LeadPicker";
 import LedgerEntryActions from "./LedgerEntryActions";
@@ -47,8 +48,45 @@ import SaleBillSheet from "./SaleBillSheet";
 import WhatsappBrandIcon from "./WhatsappBrandIcon";
 import { normalizeQrCode } from "@/lib/qr-code";
 import ListSkeleton from "@/app/components/ListSkeleton";
+import CustomerSalePaymentPanel from "./CustomerSalePaymentPanel";
+import PaymentMethodPicker from "./PaymentMethodPicker";
 
 const CUSTOMER_LINK_CATEGORIES = ["recharge", "money_transfer", "accessory", "repair"];
+
+const MADE_IN_MONTH_OPTIONS = [
+  { value: "01", label: "Jan" },
+  { value: "02", label: "Feb" },
+  { value: "03", label: "Mar" },
+  { value: "04", label: "Apr" },
+  { value: "05", label: "May" },
+  { value: "06", label: "Jun" },
+  { value: "07", label: "Jul" },
+  { value: "08", label: "Aug" },
+  { value: "09", label: "Sep" },
+  { value: "10", label: "Oct" },
+  { value: "11", label: "Nov" },
+  { value: "12", label: "Dec" },
+];
+
+function madeInPartsFromIso(iso) {
+  const s = String(iso || "").trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return { month: "", year: "" };
+  return { month: s.slice(5, 7), year: s.slice(0, 4) };
+}
+
+function madeInIsoFromParts(month, year) {
+  const m = String(month || "").trim();
+  const y = String(year || "").trim();
+  if (!m || !y || y.length !== 4) return "";
+  return `${y}-${m.padStart(2, "0")}-01`;
+}
+
+function madeInYearOptions() {
+  const now = new Date().getFullYear();
+  const years = [];
+  for (let y = now; y >= now - 25; y -= 1) years.push(String(y));
+  return years;
+}
 
 function defaultAccessoryLine() {
   return {
@@ -57,6 +95,8 @@ function defaultAccessoryLine() {
     serial_number: "",
     has_serial: false,
     made_in_date: "",
+    made_in_month: "",
+    made_in_year: "",
     has_made_in: false,
     has_warranty: false,
     warranty_months: "24",
@@ -66,6 +106,7 @@ function defaultAccessoryLine() {
     qr_code: "",
     save_product: false,
     source: "",
+    show_extras: false,
   };
 }
 
@@ -87,6 +128,13 @@ const EMPTY_FORM = {
   commission_amount: "",
   commission_manual: false,
   accessory_lines: [defaultAccessoryLine()],
+  sale_payment: {
+    payment_mode: "full",
+    amount_received: "",
+    due_preset: "in_7_days",
+    custom_due_date: "",
+    due_notes: "",
+  },
 };
 
 function accessoryLinesTotal(lines) {
@@ -143,9 +191,17 @@ function accessoryLineFromProduct(product, extras = {}) {
     serial_number: extras.serial_number || "",
     has_serial: Boolean(extras.serial_number),
     made_in_date: extras.made_in_date || "",
+    made_in_month: madeInPartsFromIso(extras.made_in_date).month,
+    made_in_year: madeInPartsFromIso(extras.made_in_date).year,
     has_made_in: Boolean(extras.made_in_date),
     has_warranty: Boolean(warrantyMonths),
     warranty_months: warrantyMonths || "24",
+    show_extras: Boolean(
+      extras.show_extras ||
+        extras.serial_number ||
+        extras.made_in_date ||
+        warrantyMonths
+    ),
   };
 }
 
@@ -156,8 +212,21 @@ function normalizeAccessoryLines(lines) {
       amount: String(row.amount ?? "").trim(),
       serial_number: String(row.serial_number || "").trim(),
       has_serial: Boolean(row.has_serial || row.serial_number),
-      made_in_date: String(row.made_in_date || "").trim().slice(0, 10),
-      has_made_in: Boolean(row.has_made_in || row.made_in_date),
+      made_in_month: String(row.made_in_month || madeInPartsFromIso(row.made_in_date).month || "").trim(),
+      made_in_year: String(row.made_in_year || madeInPartsFromIso(row.made_in_date).year || "").trim(),
+      made_in_date: (() => {
+        const fromParts = madeInIsoFromParts(
+          row.made_in_month || madeInPartsFromIso(row.made_in_date).month,
+          row.made_in_year || madeInPartsFromIso(row.made_in_date).year
+        );
+        if (fromParts) return fromParts;
+        return String(row.made_in_date || "").trim().slice(0, 10);
+      })(),
+      has_made_in: Boolean(
+        row.has_made_in ||
+          madeInIsoFromParts(row.made_in_month, row.made_in_year) ||
+          row.made_in_date
+      ),
       has_warranty: Boolean(row.has_warranty),
       warranty_months: String(row.warranty_months ?? "24"),
       product_id: row.product_id ? Number(row.product_id) : null,
@@ -168,6 +237,52 @@ function normalizeAccessoryLines(lines) {
       source: String(row.source || "").trim(),
     }))
     .filter((row) => row.description || row.amount);
+}
+
+function payModeLabelForAlert(payMode) {
+  if (payMode === "advance") return "Advance order";
+  if (payMode === "later") return "Pay later (udhaar)";
+  if (payMode === "partial") return "Partial payment";
+  return "Due / partial payment";
+}
+
+function serializedQrDueAlert(productName, payMode) {
+  const payLabel = payModeLabelForAlert(payMode);
+  const name = String(productName || "This item").trim();
+  return {
+    title: "Scan QR sticker first",
+    text:
+      `${name} is linked to inventory — each piece has its own QR sticker.\n\n` +
+      `You chose “${payLabel}”. Saving will reduce stock, so the app must know which physical unit you handed over.\n\n` +
+      `What to do: on that item row, tap “Scan QR” and scan the sticker on the product.\n\n` +
+      `Walk-in cash only? Use Full pay in section 3, or enter the item name without picking it from inventory search.`,
+  };
+}
+
+function alertFromCustomerDueMessage(message, payMode = "partial") {
+  if (!message) return null;
+  const handover = message.match(/^(.+?) needs a QR scan before handover\.?$/i);
+  if (handover) return serializedQrDueAlert(handover[1], payMode);
+  const reserve = message.match(/^(.+?): scan QR or use credit sale/i);
+  if (reserve) return serializedQrDueAlert(reserve[1], payMode);
+  return null;
+}
+
+function firstValidationMessage(errors) {
+  const order = [
+    "accessory_lines",
+    "amount",
+    "mt_subtype",
+    "customer_phone",
+    "customer_name",
+    "repair_brand",
+    "repair_brand_other",
+    "description",
+  ];
+  for (const key of order) {
+    if (errors[key]) return errors[key];
+  }
+  return "Please check the form and try again.";
 }
 
 async function ensureAccessoryCategoryId() {
@@ -691,26 +806,142 @@ function LedgerInlineSpinner({ size = 18 }) {
   return <span className="ledger-inline-spinner" style={{ width: size, height: size }} aria-hidden="true" />;
 }
 
-function AccessoryLinesEditor({ lines, onChange, suggestions, compact, error, saleDateIso }) {
+function accessoryBrandName(product, brandMap) {
+  if (!product) return "";
+  return String(product.brand || brandMap?.[product.brand_id]?.name || "").trim();
+}
+
+function accessoryDisplayImageSrc(product, brandMap) {
+  if (!product) return "";
+  if (product.image_url) return productImageSrc(product.image_url);
+  const brand = product.brand_id ? brandMap?.[product.brand_id] : null;
+  if (brand?.image_url) return productImageSrc(brand.image_url);
+  return "";
+}
+
+function AccessoryProductVisual({ product, brandMap, size = "md" }) {
+  if (!product) return null;
+  const src = accessoryDisplayImageSrc(product, brandMap);
+  const brandLabel = accessoryBrandName(product, brandMap);
+
+  return (
+    <span className={`ledger-accessory-visual is-${size}`} title={brandLabel || undefined}>
+      {src ?
+        <img src={src} alt="" className="ledger-accessory-visual-img" />
+      : (
+        <span className="ledger-accessory-visual-img is-empty" aria-hidden="true">
+          📦
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** Product + brand name search; matching a brand lists all its catalog products. */
+function searchAccessoryCatalog(catalog, brandMap, queryRaw, limit = 15) {
+  const q = String(queryRaw || "").trim().toLowerCase();
+  if (!q || !catalog.length) return { products: [], brandHint: "" };
+
+  const brandIdsHit = new Set();
+  const brandNamesHit = [];
+  for (const b of Object.values(brandMap || {})) {
+    const bn = String(b.name || "").toLowerCase();
+    if (!bn) continue;
+    if (bn.includes(q) || bn.startsWith(q)) {
+      brandIdsHit.add(b.id);
+      brandNamesHit.push(b.name);
+    }
+  }
+
+  const scored = [];
+  for (const p of catalog) {
+    const name = String(p.name || "").toLowerCase();
+    const sku = String(p.sku || "").toLowerCase();
+    const brandName = accessoryBrandName(p, brandMap).toLowerCase();
+
+    const byBrandId = p.brand_id && brandIdsHit.has(p.brand_id);
+    const byBrandText = brandName && brandName.includes(q);
+    const byName = name.includes(q);
+    const bySku = sku.includes(q);
+
+    if (!byBrandId && !byBrandText && !byName && !bySku) continue;
+
+    let score = 0;
+    if (name.startsWith(q)) score += 120;
+    else if (byName) score += 70;
+    if (byBrandId) score += 90;
+    if (brandName.startsWith(q)) score += 85;
+    else if (byBrandText) score += 40;
+    if (bySku) score += 35;
+    if (p.qty_on_hand > 0) score += 5;
+
+    scored.push({ product: p, score, sortName: name });
+  }
+
+  scored.sort((a, b) => b.score - a.score || a.sortName.localeCompare(b.sortName));
+
+  const products = [];
+  const seen = new Set();
+  for (const row of scored) {
+    if (seen.has(row.product.id)) continue;
+    seen.add(row.product.id);
+    products.push(row.product);
+    if (products.length >= limit) break;
+  }
+
+  const uniqueBrandHints = [...new Set(brandNamesHit)];
+  const brandHint =
+    uniqueBrandHints.length === 1 && brandIdsHit.size ?
+      `${uniqueBrandHints[0]} · ${products.filter((p) => p.brand_id && brandIdsHit.has(p.brand_id)).length} product(s)`
+    : uniqueBrandHints.length > 1 ?
+      `${uniqueBrandHints.length} brands`
+    : "";
+
+  return { products, brandHint };
+}
+
+function AccessoryLinesEditor({
+  lines,
+  onChange,
+  suggestions,
+  compact,
+  error,
+  qrHighlightIndex = -1,
+  saleDateIso,
+}) {
   const picks = suggestions.slice(0, compact ? 4 : 8);
   const total = accessoryLinesTotal(lines);
   const [catalog, setCatalog] = useState([]);
+  const [brandMap, setBrandMap] = useState({});
   const [scanOpen, setScanOpen] = useState(false);
   const [scanTarget, setScanTarget] = useState(0);
   const [manualCode, setManualCode] = useState("");
   const [scanBusy, setScanBusy] = useState(false);
   const [activeSearch, setActiveSearch] = useState(null);
   const lastScanRef = useRef("");
+  const madeInYears = useMemo(() => madeInYearOptions(), []);
   const linesRef = useRef(lines);
   const scanTargetRef = useRef(0);
   linesRef.current = lines;
 
   useEffect(() => {
     let cancelled = false;
-    fetch(apiUrl("/api/admin/inventory/products?status=active"), { credentials: "include" })
-      .then((r) => r.json())
-      .then((data) => {
-        if (!cancelled && data.ok) setCatalog(data.products || []);
+    Promise.all([
+      fetch(apiUrl("/api/admin/inventory/products?status=active"), { credentials: "include" }).then((r) =>
+        r.json()
+      ),
+      fetch(apiUrl("/api/admin/inventory/brands"), { credentials: "include" }).then((r) => r.json()),
+    ])
+      .then(([prodData, brandData]) => {
+        if (cancelled) return;
+        if (prodData.ok) setCatalog(prodData.products || []);
+        if (brandData.ok) {
+          const map = {};
+          for (const b of brandData.brands || []) {
+            if (b?.id) map[b.id] = b;
+          }
+          setBrandMap(map);
+        }
       })
       .catch(() => {});
     return () => {
@@ -839,6 +1070,16 @@ function AccessoryLinesEditor({ lines, onChange, suggestions, compact, error, sa
     setScanOpen(true);
   }
 
+  function updateMadeIn(index, month, year) {
+    const made_in_date = madeInIsoFromParts(month, year);
+    updateLine(index, {
+      made_in_month: month,
+      made_in_year: year,
+      made_in_date,
+      has_made_in: Boolean(made_in_date),
+    });
+  }
+
   return (
     <div className={`ledger-accessory-lines${error ? " has-error" : ""}`}>
       <div className="ledger-accessory-lines-head">
@@ -895,56 +1136,75 @@ function AccessoryLinesEditor({ lines, onChange, suggestions, compact, error, sa
             line.has_warranty && saleDateIso && warrantyMonths > 0 ?
               computeWarrantyUntil(saleDateIso, warrantyMonths)
             : null;
-          const query = String(line.description || "").trim().toLowerCase();
-          const matches =
+          const query = String(line.description || "").trim();
+          const searchResult =
             activeSearch === index && query ?
-              catalog
-                .filter(
-                  (p) =>
-                    p.name.toLowerCase().includes(query) ||
-                    (p.brand && p.brand.toLowerCase().includes(query)) ||
-                    (p.sku && p.sku.toLowerCase().includes(query))
-                )
-                .slice(0, 8)
-            : [];
+              searchAccessoryCatalog(catalog, brandMap, query)
+            : { products: [], brandHint: "" };
+          const matches = searchResult.products;
+          const searchBrandHint = searchResult.brandHint;
           const isNewProduct = Boolean(query) && !line.product_id && !line.qr_code;
+          const pickedProduct =
+            line.product_id ? catalog.find((p) => p.id === line.product_id) : null;
           return (
             <li key={index} className="ledger-accessory-line-wrap">
               <div className="ledger-accessory-line">
-                <div className="ledger-accessory-search">
+                <div
+                  className={`ledger-accessory-search${pickedProduct && activeSearch !== index ? " has-picked-thumb" : ""}`}
+                >
+                  {pickedProduct && activeSearch !== index ?
+                    <AccessoryProductVisual product={pickedProduct} brandMap={brandMap} size="sm" />
+                  : null}
                   <input
                     type="text"
                     autoComplete="off"
-                    placeholder="Search or type product name"
+                    placeholder="Search product or brand"
                     value={line.description}
                     aria-label={`Item ${index + 1} name`}
                     onFocus={() => setActiveSearch(index)}
                     onChange={(e) => onDescriptionChange(index, e.target.value)}
                   />
+                  {activeSearch === index && query && matches.length === 0 ?
+                    <p className="ledger-accessory-results-empty">No products match. Type a new name or scan QR.</p>
+                  : null}
                   {matches.length > 0 ?
-                    <ul className="ledger-accessory-results" role="listbox">
-                      {matches.map((product) => (
+                    <ul className="ledger-accessory-results" role="listbox" aria-label="Product search results">
+                      {searchBrandHint ?
+                        <li className="ledger-accessory-results-hint" aria-hidden="true">
+                          {searchBrandHint}
+                        </li>
+                      : null}
+                      {matches.map((product) => {
+                        const brandLabel = accessoryBrandName(product, brandMap);
+                        return (
                         <li key={product.id}>
                           <button
                             type="button"
                             className="ledger-accessory-result"
+                            role="option"
                             onClick={() => selectProduct(index, product)}
                           >
-                            <span>
-                              {product.name}
-                              {product.brand ? ` · ${product.brand}` : ""}
-                            </span>
-                            <span className="ledger-accessory-result-meta">
-                              ₹{formatMoney(product.selling_price)}
-                              {product.product_type === "serialized" ?
-                                " · scan QR"
-                              : product.qty_on_hand > 0 ?
-                                ` · ${product.qty_on_hand} in shop`
-                              : " · new sale"}
+                            <AccessoryProductVisual product={product} brandMap={brandMap} size="sm" />
+                            <span className="ledger-accessory-result-body">
+                              <span className="ledger-accessory-result-name">
+                                {product.name}
+                                {brandLabel ?
+                                  <span className="ledger-accessory-result-brand">{brandLabel}</span>
+                                : null}
+                              </span>
+                              <span className="ledger-accessory-result-meta">
+                                ₹{formatMoney(product.selling_price)}
+                                {product.product_type === "serialized" ?
+                                  " · scan QR"
+                                : product.qty_on_hand > 0 ?
+                                  ` · ${product.qty_on_hand} in shop`
+                                : " · out of stock"}
+                              </span>
                             </span>
                           </button>
                         </li>
-                      ))}
+                      );
+                      })}
                     </ul>
                   : null}
                 </div>
@@ -968,124 +1228,134 @@ function AccessoryLinesEditor({ lines, onChange, suggestions, compact, error, sa
                   ×
                 </button>
               </div>
-              {line.qr_code || line.product_id ?
-                <div className="ledger-accessory-picked">
+              {line.qr_code || line.product_id || isNewProduct ?
+                <div
+                  className={`ledger-accessory-status${qrHighlightIndex === index ? " is-qr-required" : ""}`}
+                >
                   {line.qr_code ?
-                    <span className="ledger-accessory-pill is-scan">Scanned {line.qr_code}</span>
-                  : line.product_type === "serialized" ?
-                    <span className="ledger-accessory-pill">Catalog · scan QR to take stock</span>
-                  : line.qty_on_hand > 0 ?
-                    <span className="ledger-accessory-pill">{line.qty_on_hand} in shop</span>
-                  : <span className="ledger-accessory-pill">Saved product</span>}
-                  <button
-                    type="button"
-                    className="ledger-accessory-add-line"
-                    onClick={() => openScan(index)}
-                  >
-                    Scan QR
-                  </button>
-                </div>
-              : isNewProduct ?
-                <div className="ledger-accessory-picked">
-                  <span className="ledger-accessory-new-hint">New product — enter amount and sell.</span>
-                  <label className="ledger-accessory-warranty-check">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(line.save_product)}
-                      onChange={(e) => updateLine(index, { save_product: e.target.checked })}
-                    />
-                    <span>Save this product</span>
-                  </label>
-                  <button
-                    type="button"
-                    className="ledger-accessory-add-line"
-                    onClick={() => openScan(index)}
-                  >
-                    Scan instead
-                  </button>
-                </div>
-              : <div className="ledger-accessory-picked">
-                  <span className="ledger-accessory-new-hint">Type a name to search, or scan the sticker.</span>
-                </div>}
-              <div className="ledger-accessory-options" role="group" aria-label={`Optional details for item ${index + 1}`}>
-                <label className="ledger-accessory-warranty-check">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(line.has_serial)}
-                    onChange={(e) =>
-                      updateLine(index, {
-                        has_serial: e.target.checked,
-                        serial_number: e.target.checked ? line.serial_number : "",
-                      })
-                    }
-                  />
-                  <span>Serial no.</span>
-                </label>
-                <label className="ledger-accessory-warranty-check">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(line.has_made_in)}
-                    onChange={(e) =>
-                      updateLine(index, {
-                        has_made_in: e.target.checked,
-                        made_in_date: e.target.checked ? line.made_in_date : "",
-                      })
-                    }
-                  />
-                  <span>Made-in date</span>
-                </label>
-                <label className="ledger-accessory-warranty-check">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(line.has_warranty)}
-                    onChange={(e) => updateLine(index, { has_warranty: e.target.checked })}
-                  />
-                  <span>Warranty</span>
-                </label>
-              </div>
-              {line.has_serial ?
-                <input
-                  className="ledger-accessory-serial"
-                  type="text"
-                  maxLength={80}
-                  placeholder="Enter serial number"
-                  value={line.serial_number || ""}
-                  aria-label={`Item ${index + 1} serial number`}
-                  onChange={(e) => updateLine(index, { serial_number: e.target.value })}
-                />
-              : null}
-              {line.has_made_in ?
-                <label className="ledger-accessory-date-field">
-                  <span>Made-in date</span>
-                  <input
-                    type="date"
-                    value={line.made_in_date || ""}
-                    aria-label={`Item ${index + 1} made-in date`}
-                    onChange={(e) => updateLine(index, { made_in_date: e.target.value })}
-                  />
-                </label>
-              : null}
-              {line.has_warranty ?
-                <div className="ledger-accessory-warranty">
-                  <select
-                    className="ledger-accessory-warranty-months"
-                    value={line.warranty_months || "24"}
-                    aria-label={`Item ${index + 1} warranty months`}
-                    onChange={(e) => updateLine(index, { warranty_months: e.target.value })}
-                  >
-                    {WARRANTY_MONTH_CHOICES.map((m) => (
-                      <option key={m} value={String(m)}>
-                        {m} months
-                      </option>
-                    ))}
-                  </select>
-                  {warrantyUntil ?
-                    <span className="ledger-accessory-warranty-until">
-                      Valid till {formatWarrantyUntilLabel(warrantyUntil)}
-                    </span>
+                    <span className="ledger-accessory-pill is-scan">QR {line.qr_code}</span>
+                  : line.product_id && line.product_type === "serialized" ?
+                    <span className="ledger-accessory-pill is-muted">Scan QR when selling</span>
+                  : line.product_id && line.qty_on_hand > 0 ?
+                    <span className="ledger-accessory-pill is-ok">{line.qty_on_hand} in shop</span>
+                  : isNewProduct ?
+                    <span className="ledger-accessory-pill is-muted">New item</span>
+                  : null}
+                  {!line.qr_code ?
+                    <button type="button" className="ledger-accessory-link-btn" onClick={() => openScan(index)}>
+                      Scan QR
+                    </button>
+                  : null}
+                  {isNewProduct ?
+                    <label className="ledger-accessory-save-check">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(line.save_product)}
+                        onChange={(e) => updateLine(index, { save_product: e.target.checked })}
+                      />
+                      <span>Save to catalog</span>
+                    </label>
                   : null}
                 </div>
               : null}
+              <div className="ledger-accessory-extras">
+                <label className="ledger-accessory-extras-check">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(line.show_extras)}
+                    onChange={(e) => updateLine(index, { show_extras: e.target.checked })}
+                  />
+                  <span>Serial, made-in & warranty</span>
+                </label>
+                {line.show_extras ?
+                <div className="ledger-accessory-extras-grid">
+                  <label className="ledger-accessory-extra">
+                    <span>Serial no.</span>
+                    <input
+                      type="text"
+                      maxLength={80}
+                      placeholder="—"
+                      value={line.serial_number || ""}
+                      onChange={(e) => {
+                        const serial_number = e.target.value;
+                        updateLine(index, {
+                          serial_number,
+                          has_serial: Boolean(String(serial_number).trim()),
+                        });
+                      }}
+                    />
+                  </label>
+                  <div className="ledger-accessory-extra ledger-accessory-made-in">
+                    <span>Made in</span>
+                    <div className="ledger-accessory-made-in-row">
+                      <select
+                        aria-label={`Item ${index + 1} made-in month`}
+                        value={line.made_in_month || madeInPartsFromIso(line.made_in_date).month}
+                        onChange={(e) =>
+                          updateMadeIn(
+                            index,
+                            e.target.value,
+                            line.made_in_year || madeInPartsFromIso(line.made_in_date).year
+                          )
+                        }
+                      >
+                        <option value="">Month</option>
+                        {MADE_IN_MONTH_OPTIONS.map((m) => (
+                          <option key={m.value} value={m.value}>
+                            {m.label}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        aria-label={`Item ${index + 1} made-in year`}
+                        value={line.made_in_year || madeInPartsFromIso(line.made_in_date).year}
+                        onChange={(e) =>
+                          updateMadeIn(
+                            index,
+                            line.made_in_month || madeInPartsFromIso(line.made_in_date).month,
+                            e.target.value
+                          )
+                        }
+                      >
+                        <option value="">Year</option>
+                        {madeInYears.map((y) => (
+                          <option key={y} value={y}>
+                            {y}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <label className="ledger-accessory-extra">
+                    <span>Warranty</span>
+                    <select
+                      value={line.has_warranty ? line.warranty_months || "24" : ""}
+                      aria-label={`Item ${index + 1} warranty`}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (!val) {
+                          updateLine(index, { has_warranty: false, warranty_months: "24" });
+                        } else {
+                          updateLine(index, { has_warranty: true, warranty_months: val });
+                        }
+                      }}
+                    >
+                      <option value="">None</option>
+                      {WARRANTY_MONTH_CHOICES.map((m) => (
+                        <option key={m} value={String(m)}>
+                          {formatWarrantyMonthChoiceLabel(m)}
+                        </option>
+                      ))}
+                    </select>
+                    {line.has_warranty && warrantyUntil ?
+                      <small className="ledger-accessory-warranty-until">
+                        Till {formatWarrantyUntilLabel(warrantyUntil)}
+                      </small>
+                    : null}
+                  </label>
+                </div>
+                : null}
+              </div>
             </li>
           );
         })}
@@ -1963,6 +2233,7 @@ export default function DayBookApp({ userRole = "staff", userName = "", allowPas
 
   function validateEntryForm() {
     const errors = {};
+    let alert = null;
 
     if (category === "money_transfer") {
       if (!form.mt_subtype || !MT_SUBTYPES.includes(form.mt_subtype)) {
@@ -2027,8 +2298,41 @@ export default function DayBookApp({ userRole = "staff", userName = "", allowPas
       }
     }
 
+    const payMode = form.sale_payment?.payment_mode || "full";
+    if ((category === "accessory" || category === "repair") && payMode !== "full") {
+      if (customerLinkMode !== "customer") {
+        errors.customer_phone = "Tap Customer and enter name + mobile for due / advance sales.";
+      } else {
+        const phone = String(form.customer_phone || "").trim();
+        if (phone.length !== 10) {
+          errors.customer_phone = "Enter full 10-digit mobile for this sale.";
+        }
+        if (!form.customer_name.trim()) {
+          errors.customer_name = "Enter customer name.";
+        }
+      }
+    }
+
+    if (category === "accessory" && payMode !== "full" && !errors.accessory_lines) {
+      const rawLines = form.accessory_lines || [];
+      for (let index = 0; index < rawLines.length; index++) {
+        const row = normalizeAccessoryLines([rawLines[index]])[0];
+        if (!row?.description || row.amount === "" || Number(row.amount) < 0) continue;
+        if (
+          row.product_id &&
+          row.product_type === "serialized" &&
+          !normalizeQrCode(row.qr_code)
+        ) {
+          alert = serializedQrDueAlert(row.description, payMode);
+          errors.accessory_qr_line = index;
+          break;
+        }
+      }
+    }
+
     setFormErrors(errors);
-    return Object.keys(errors).length === 0;
+    const ok = Object.keys(errors).length === 0;
+    return { ok, alert, errors };
   }
 
   async function confirmEntryBookDate() {
@@ -2081,7 +2385,15 @@ export default function DayBookApp({ userRole = "staff", userName = "", allowPas
   async function submitEntry(event) {
     event.preventDefault();
     if (!canAddEntry || !selectedDayIso) return;
-    if (!validateEntryForm()) return;
+    const validation = validateEntryForm();
+    if (!validation.ok) {
+      if (validation.alert) {
+        await showFormError(validation.alert.text, validation.alert.title);
+      } else {
+        await showFormError(firstValidationMessage(validation.errors));
+      }
+      return;
+    }
 
     const saveDate = selectedDayIso;
     if (!isViewingToday) {
@@ -2120,6 +2432,72 @@ export default function DayBookApp({ userRole = "staff", userName = "", allowPas
         const lines = normalizeAccessoryLines(form.accessory_lines).filter(
           (row) => row.description && row.amount !== "" && Number(row.amount) >= 0
         );
+        const payMode = form.sale_payment?.payment_mode || "full";
+        const billTotal = accessoryLinesTotal(lines);
+
+        if (payMode !== "full") {
+          for (const line of lines) {
+            if (line.save_product && !line.product_id) {
+              const saved = await saveNewCatalogProduct(line);
+              if (!saved.error && saved.product) {
+                line.product_id = saved.product.id;
+                line.product_type = saved.product.product_type || "quantity";
+              }
+            }
+          }
+          const dueRes = await fetch(apiUrl("/api/admin/customer-dues"), {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              book_date: saveDate,
+              payment_mode: payMode,
+              due_type: payMode === "advance" ? "advance_order" : "credit_sale",
+              bill_total: billTotal,
+              amount_received:
+                payMode === "later" ? 0
+                : payMode === "partial" ? form.sale_payment?.amount_received || 0
+                : form.sale_payment?.amount_received || 0,
+              due_preset: form.sale_payment?.due_preset,
+              custom_due_date: form.sale_payment?.custom_due_date,
+              due_notes: form.sale_payment?.due_notes,
+              payment_method: form.payment_method || "cash",
+              customer_phone: customerPhone,
+              customer_name: customerName,
+              ledger_category: "accessory",
+              lines: lines.map((row) => ({
+                description: row.description,
+                line_total: Number(row.amount),
+                qty: 1,
+                product_id: row.product_id,
+                qr_code: row.qr_code || undefined,
+              })),
+            }),
+          });
+          const dueData = await dueRes.json().catch(() => ({}));
+          if (!dueRes.ok) {
+            const dueAlert = alertFromCustomerDueMessage(dueData.message, payMode);
+            if (dueAlert) {
+              await showFormError(dueAlert.text, dueAlert.title);
+            } else {
+              showError(dueData.message || "Could not save sale with due.");
+            }
+            return;
+          }
+          resetForm(true);
+          setAddOpen(false);
+          setDateFrom(saveDate);
+          setDateTo(saveDate);
+          await loadRange(saveDate, saveDate);
+          await loadSuggestions();
+          showSuccess(
+            dueData.invoice_no ?
+              `Saved ${dueData.invoice_no}. Balance due tracked — collect from Customer dues.`
+            : "Sale saved with customer due."
+          );
+          return;
+        }
+
         const savedEntries = [];
         let invoiceNo = "";
         const saveNotes = [];
@@ -2272,6 +2650,58 @@ export default function DayBookApp({ userRole = "staff", userName = "", allowPas
         }
         return;
       } else {
+        const payMode = form.sale_payment?.payment_mode || "full";
+        if (category === "repair" && payMode !== "full") {
+          const billTotal = Number(form.amount) || 0;
+          const dueRes = await fetch(apiUrl("/api/admin/customer-dues"), {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              book_date: saveDate,
+              payment_mode: payMode,
+              due_type: "credit_sale",
+              bill_total: billTotal,
+              amount_received:
+                payMode === "later" ? 0
+                : payMode === "partial" ? form.sale_payment?.amount_received || 0
+                : form.sale_payment?.amount_received || 0,
+              due_preset: form.sale_payment?.due_preset,
+              custom_due_date: form.sale_payment?.custom_due_date,
+              due_notes: form.sale_payment?.due_notes,
+              payment_method: form.payment_method || "cash",
+              customer_phone: customerPhone,
+              customer_name: customerName,
+              ledger_category: "repair",
+              device_brand: repairDeviceBrand(form) || undefined,
+              repair_description: repairBillLineDescription(form),
+              description: form.description,
+              warranty_months:
+                form.repair_has_warranty && form.repair_warranty_months ?
+                  form.repair_warranty_months
+                : undefined,
+              lines: [{
+                description: repairBillLineDescription(form),
+                line_total: billTotal,
+                qty: 1,
+              }],
+            }),
+          });
+          const dueData = await dueRes.json().catch(() => ({}));
+          if (!dueRes.ok) {
+            showError(dueData.message || "Could not save repair with due.");
+            return;
+          }
+          resetForm(true);
+          setAddOpen(false);
+          setDateFrom(saveDate);
+          setDateTo(saveDate);
+          await loadRange(saveDate, saveDate);
+          await loadSuggestions();
+          showSuccess("Repair saved with customer due.");
+          return;
+        }
+
         const { res, data } = await postEntry({
           date: saveDate,
           category,
@@ -2423,8 +2853,7 @@ export default function DayBookApp({ userRole = "staff", userName = "", allowPas
         />
       : null;
 
-    const customerAfterDetails =
-      category === "repair" || category === "accessory";
+    const saleCheckoutFlow = category === "accessory" || category === "repair";
     const repairQuickSheet = simple && category === "repair";
     const accessoryLineCount =
       category === "accessory" ?
@@ -2432,6 +2861,11 @@ export default function DayBookApp({ userRole = "staff", userName = "", allowPas
           (row) => row.description && row.amount !== "" && Number(row.amount) >= 0
         ).length
       : 0;
+    const accessoryBillTotal =
+      category === "accessory" ?
+        accessoryLinesTotal(normalizeAccessoryLines(form.accessory_lines))
+      : 0;
+    const repairBillTotal = category === "repair" ? Number(form.amount) || 0 : 0;
     const rechargeRule = commissionRules.find((r) => r.rule_key === "recharge");
     const rechargeRateHint =
       category === "recharge" && rechargeRule?.calc_type === "percent" && rechargeRule.rate != null ?
@@ -2501,18 +2935,84 @@ export default function DayBookApp({ userRole = "staff", userName = "", allowPas
           ) : null}
 
           {category === "accessory" ?
-            <AccessoryLinesEditor
-              lines={form.accessory_lines || [defaultAccessoryLine()]}
-              suggestions={itemSuggestions.accessory}
-              compact={simple}
-              saleDateIso={selectedDayIso || todayDateString()}
-              error={formErrors.accessory_lines}
-              onChange={(accessory_lines) => {
-                clearFormError("accessory_lines");
-                setForm((p) => ({ ...p, accessory_lines }));
-              }}
-            />
-          : <label
+            <div className="ledger-sale-flow">
+              <section className="ledger-sale-flow-step">
+                <h4 className="ledger-sale-flow-step-title">1. Items</h4>
+                <AccessoryLinesEditor
+                  lines={form.accessory_lines || [defaultAccessoryLine()]}
+                  suggestions={itemSuggestions.accessory}
+                  compact={simple}
+                  saleDateIso={selectedDayIso || todayDateString()}
+                  error={formErrors.accessory_lines}
+                  qrHighlightIndex={
+                    formErrors.accessory_qr_line != null ? Number(formErrors.accessory_qr_line) : -1
+                  }
+                  onChange={(accessory_lines) => {
+                    clearFormError("accessory_lines");
+                    clearFormError("accessory_qr_line");
+                    setForm((p) => ({ ...p, accessory_lines }));
+                  }}
+                />
+              </section>
+              {accessoryBillTotal > 0 ?
+                <>
+                  <section className="ledger-sale-flow-step is-customer">
+                    <h4 className="ledger-sale-flow-step-title">2. Customer</h4>
+                    <p className="ledger-sale-flow-step-hint">
+                      Skip for walk-in cash. Required for udhaar, partial pay, or WhatsApp bill.
+                    </p>
+                    {customerLinkPanel}
+                    {customerLinkMode === "customer" && form.customer_phone.length === 10 ?
+                      <div className="ledger-sale-flow-whatsapp">
+                        <label className="ledger-whatsapp-bill-opt">
+                          <input
+                            type="checkbox"
+                            checked={sendWhatsappBill}
+                            onChange={(e) => setSendWhatsappBill(e.target.checked)}
+                          />
+                          <span className="ledger-whatsapp-bill-opt-copy">
+                            <span>Send bill on WhatsApp after save</span>
+                          </span>
+                        </label>
+                        {sendWhatsappBill && !whatsappConfigured ?
+                          <p className="ledger-whatsapp-bill-hint">WhatsApp is not configured on the server.</p>
+                        : sendWhatsappBill && !whatsappConnected ?
+                          <p className="ledger-whatsapp-bill-hint">
+                            Link WhatsApp in{" "}
+                            <Link href="/admin/settings" className="ledger-inline-link">
+                              Settings
+                            </Link>{" "}
+                            first.
+                          </p>
+                        : null}
+                      </div>
+                    : null}
+                  </section>
+                  <section className="ledger-sale-flow-step">
+                    <h4 className="ledger-sale-flow-step-title">3. Payment</h4>
+                    <CustomerSalePaymentPanel
+                      billTotal={accessoryBillTotal}
+                      bookDateIso={selectedDayIso || todayDateString()}
+                      value={form.sale_payment}
+                      compact={simple}
+                      onNeedCustomer={enableCustomerLink}
+                      onChange={(sale_payment) => setForm((p) => ({ ...p, sale_payment }))}
+                    />
+                    {simple ?
+                      <PaymentMethodPicker
+                        compact
+                        value={form.payment_method}
+                        onChange={(payment_method) => setForm((p) => ({ ...p, payment_method }))}
+                      />
+                    : null}
+                  </section>
+                </>
+              : null}
+            </div>
+          : null}
+
+          {category !== "accessory" ?
+          <label
               className={`ledger-quick-field${!mtTypeSelected ? " is-disabled" : ""}${formErrors.amount ? " has-error" : ""}`}
             >
               <span>Amount (₹)</span>
@@ -2543,7 +3043,7 @@ export default function DayBookApp({ userRole = "staff", userName = "", allowPas
                 </p>
               : null}
             </label>
-          }
+          : null}
 
           {commissionEligible(category, form.mt_subtype) && mtTypeSelected && form.amount !== "" ? (
             <div className="ledger-commission-field">
@@ -2641,7 +3141,7 @@ export default function DayBookApp({ userRole = "staff", userName = "", allowPas
             </div>
           ) : null}
 
-          {!customerAfterDetails ? customerLinkPanel : null}
+          {!saleCheckoutFlow && CUSTOMER_LINK_CATEGORIES.includes(category) ? customerLinkPanel : null}
 
           {category === "recharge" ? (
             <label className="ledger-quick-field">
@@ -2771,18 +3271,53 @@ export default function DayBookApp({ userRole = "staff", userName = "", allowPas
             </>
           ) : null}
 
-          {customerAfterDetails ? customerLinkPanel : null}
+          {category === "repair" && repairBillTotal > 0 ?
+            <div className="ledger-sale-flow">
+              <section className="ledger-sale-flow-step is-customer">
+                <h4 className="ledger-sale-flow-step-title">Customer</h4>
+                <p className="ledger-sale-flow-step-hint">
+                  Skip for quick cash repair. Required for due / partial payment or WhatsApp bill.
+                </p>
+                {customerLinkPanel}
+                {customerLinkMode === "customer" && form.customer_phone.length === 10 ?
+                  <div className="ledger-sale-flow-whatsapp">
+                    <label className="ledger-whatsapp-bill-opt">
+                      <input
+                        type="checkbox"
+                        checked={sendWhatsappBill}
+                        onChange={(e) => setSendWhatsappBill(e.target.checked)}
+                      />
+                      <span className="ledger-whatsapp-bill-opt-copy">
+                        <span>Send bill on WhatsApp after save</span>
+                      </span>
+                    </label>
+                  </div>
+                : null}
+              </section>
+              <section className="ledger-sale-flow-step">
+                <h4 className="ledger-sale-flow-step-title">Payment</h4>
+                <CustomerSalePaymentPanel
+                  billTotal={repairBillTotal}
+                  bookDateIso={selectedDayIso || todayDateString()}
+                  value={form.sale_payment}
+                  compact={simple}
+                  onNeedCustomer={enableCustomerLink}
+                  onChange={(sale_payment) => setForm((p) => ({ ...p, sale_payment }))}
+                />
+              </section>
+            </div>
+          : null}
 
-          {category === "accessory" || category === "repair" ?
+          {!saleCheckoutFlow && (category === "accessory" || category === "repair") ?
             <div className="ledger-whatsapp-bill-block">
               <p className="ledger-whatsapp-bill-block-title">WhatsApp bill</p>
               {customerLinkMode !== "customer" ?
                 <p className="ledger-whatsapp-bill-hint">
-                  To send a bill after save, tap{" "}
+                  Choose{" "}
                   <button type="button" className="ledger-inline-link" onClick={enableCustomerLink}>
                     Customer
                   </button>{" "}
-                  and enter the customer mobile.
+                  and enter mobile to send a bill.
                 </p>
               : form.customer_phone.length !== 10 ?
                 <p className="ledger-whatsapp-bill-hint">Enter the full 10-digit mobile number.</p>
@@ -2895,20 +3430,11 @@ export default function DayBookApp({ userRole = "staff", userName = "", allowPas
           ) : null}
 
           {!simple && category === "accessory" ? (
-            <label className="ledger-quick-field">
-              <span>Payment method (optional)</span>
-              <select
-                value={form.payment_method}
-                onChange={(e) => setForm((p) => ({ ...p, payment_method: e.target.value }))}
-              >
-                <option value="">—</option>
-                {PAYMENT_METHODS.map((m) => (
-                  <option key={m} value={m}>
-                    {m.toUpperCase()}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <PaymentMethodPicker
+              value={form.payment_method}
+              onChange={(payment_method) => setForm((p) => ({ ...p, payment_method }))}
+              label="Payment method"
+            />
           ) : null}
 
           {!simple && category === "repair" ? (
@@ -3185,6 +3711,9 @@ export default function DayBookApp({ userRole = "staff", userName = "", allowPas
         <div className="ledger-top-actions ledger-toolbar-desktop">
           <LedgerDateRangeControl {...dateRangeProps} />
           <LedgerExportButton onClick={exportDayBookPdf} />
+          <Link href="/admin/accounting/customer-dues" className="admin-btn admin-btn-secondary">
+            Customer dues
+          </Link>
           {canAddEntry ?
             <button type="button" className="admin-btn ledger-top-add" onClick={() => openAddModal()}>
               + Add entry

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiUrl, productImageSrc } from "@/lib/basePath";
+import ProductAddStockModal from "@/app/components/ProductAddStockModal";
 import ProductLinkQrModal from "@/app/components/ProductLinkQrModal";
 import ListSkeleton from "@/app/components/ListSkeleton";
 import ProductRowActions from "@/app/components/ProductRowActions";
@@ -22,10 +23,10 @@ function productStatusLabel(p) {
   return { text: "Active", className: "is-ok" };
 }
 
-function ProductCard({ p, onDelete, onLinkQr }) {
+function ProductCard({ p, onDelete, onLinkQr, onAddStock }) {
   const st = productStatusLabel(p);
   const actions = (
-    <ProductRowActions product={p} onLinkQr={onLinkQr} onDelete={onDelete} />
+    <ProductRowActions product={p} onLinkQr={onLinkQr} onAddStock={onAddStock} onDelete={onDelete} />
   );
   return (
     <li className={`inv-product-card${p.low_stock ? " is-low-stock" : ""}`}>
@@ -52,6 +53,14 @@ function ProductCard({ p, onDelete, onLinkQr }) {
         </div>
         <span className={`inv-status-pill ${st.className}`}>{st.text}</span>
       </Link>
+      <button
+        type="button"
+        className="inv-stock-add-btn inv-stock-add-btn--card"
+        aria-label={`Add stock for ${p.name}`}
+        onClick={(e) => onAddStock(p, e)}
+      >
+        + Add stock
+      </button>
       <div className="inv-product-card-actions inv-product-card-actions--menu">{actions}</div>
     </li>
   );
@@ -75,6 +84,7 @@ export default function InventoryProductsApp() {
   const [statusFilter, setStatusFilter] = useState("");
   const [productTypeFilter, setProductTypeFilter] = useState("");
   const [lowStockOnly, setLowStockOnly] = useState(lowStockUrl);
+  const [outOfStockOnly, setOutOfStockOnly] = useState(false);
   const [page, setPage] = useState(1);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -82,12 +92,29 @@ export default function InventoryProductsApp() {
   const [mobileVisibleCount, setMobileVisibleCount] = useState(MOBILE_BATCH);
   const loadMoreRef = useRef(null);
   const [linkProduct, setLinkProduct] = useState(null);
+  const [stockProduct, setStockProduct] = useState(null);
+  const [summary, setSummary] = useState(null);
+  const [summaryLoading, setSummaryLoading] = useState(true);
 
   useEffect(() => {
     if (urlEditId) {
       router.replace(`/admin/inventory/products/${urlEditId}`);
     }
   }, [urlEditId, router]);
+
+  const loadSummary = useCallback(() => {
+    setSummaryLoading(true);
+    fetch(apiUrl("/api/admin/inventory/products/summary"), { credentials: "include" })
+      .then((r) => r.json())
+      .then((j) => {
+        if (j.ok) setSummary(j.summary || null);
+      })
+      .finally(() => setSummaryLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadSummary();
+  }, [loadSummary]);
 
   useEffect(() => {
     fetch(apiUrl("/api/admin/inventory/categories"), { credentials: "include" })
@@ -118,6 +145,7 @@ export default function InventoryProductsApp() {
     else if (brand) qs.set("brand", brand);
     if (statusFilter) qs.set("status", statusFilter);
     if (lowStockOnly) qs.set("low_stock", "1");
+    if (outOfStockOnly) qs.set("out_of_stock", "1");
     if (productTypeFilter) qs.set("product_type", productTypeFilter);
     const res = await fetch(apiUrl(`/api/admin/inventory/products?${qs}`), {
       credentials: "include",
@@ -132,7 +160,7 @@ export default function InventoryProductsApp() {
     setError("");
     setPage(1);
     setMobileVisibleCount(MOBILE_BATCH);
-  }, [search, categoryId, brand, brandIdFilter, statusFilter, lowStockOnly, productTypeFilter]);
+  }, [search, categoryId, brand, brandIdFilter, statusFilter, lowStockOnly, outOfStockOnly, productTypeFilter]);
 
   useEffect(() => {
     const t = setTimeout(() => loadProducts(), search ? 280 : 0);
@@ -175,7 +203,20 @@ export default function InventoryProductsApp() {
     statusFilter,
     productTypeFilter,
     lowStockOnly,
+    outOfStockOnly,
   ].filter(Boolean).length;
+
+  function focusLowStock() {
+    setOutOfStockOnly(false);
+    setLowStockOnly(true);
+    setPage(1);
+  }
+
+  function focusOutOfStock() {
+    setLowStockOnly(false);
+    setOutOfStockOnly(true);
+    setPage(1);
+  }
 
   const hasActiveFilters =
     Boolean(search.trim()) || activeFilterCount > 0;
@@ -186,6 +227,22 @@ export default function InventoryProductsApp() {
     e.preventDefault();
     e.stopPropagation();
     setLinkProduct(p);
+  }
+
+  function openAddStock(p, e) {
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
+    setStockProduct(p);
+  }
+
+  function onStockUpdated(updated) {
+    if (!updated?.id) {
+      loadProducts();
+      loadSummary();
+      return;
+    }
+    setProducts((list) => list.map((row) => (row.id === updated.id ? { ...row, ...updated } : row)));
+    loadSummary();
   }
 
   async function deleteProduct(p, e) {
@@ -207,6 +264,7 @@ export default function InventoryProductsApp() {
       return;
     }
     showSuccess("Product deleted.");
+    loadSummary();
     loadProducts();
   }
 
@@ -217,6 +275,7 @@ export default function InventoryProductsApp() {
     setStatusFilter("");
     setProductTypeFilter("");
     setLowStockOnly(false);
+    setOutOfStockOnly(false);
   }
 
   const showingFrom = products.length ? (page - 1) * PAGE_SIZE + 1 : 0;
@@ -276,11 +335,21 @@ export default function InventoryProductsApp() {
         </Link>
         <div className="inv-pwa-head-text">
           <h1>Products</h1>
-          <p className="inv-pwa-head-sub">{products.length} in catalog</p>
+          <p className="inv-pwa-head-sub">
+            {summary?.active_products ?? products.length} in catalog
+            {summary?.low_stock_count ?
+              ` · ${summary.low_stock_count} low`
+            : ""}
+          </p>
         </div>
-        <Link href="/admin/inventory/products/new" className="inv-pwa-head-add admin-btn">
-          Add
-        </Link>
+        <div className="inv-pwa-head-actions">
+          <Link href="/admin/inventory/stock/add" className="inv-pwa-head-add admin-btn admin-btn-secondary">
+            Stock
+          </Link>
+          <Link href="/admin/inventory/products/new" className="inv-pwa-head-add admin-btn">
+            Add
+          </Link>
+        </div>
       </header>
 
       <div className="inv-pwa-search-bar">
@@ -322,10 +391,89 @@ export default function InventoryProductsApp() {
           <h1>Products</h1>
           <p>Search and manage your catalog.</p>
         </div>
-        <Link href="/admin/inventory/products/new" className="admin-btn">
-          + Add product
-        </Link>
+        <div className="inv-dash-head-actions">
+          <Link href="/admin/inventory/stock/add" className="admin-btn admin-btn-secondary">
+            Add stock
+          </Link>
+          <Link href="/admin/inventory/products/new" className="admin-btn">
+            + Add product
+          </Link>
+        </div>
       </header>
+
+      <section className="inv-product-mgmt-strip" aria-label="Manage inventory">
+        <div className="inv-product-mgmt-actions">
+          <Link href="/admin/inventory/stock/add" className="admin-btn inv-product-mgmt-action">
+            Add stock
+          </Link>
+          <Link href="/admin/inventory/purchases#record-purchase" className="admin-btn admin-btn-secondary inv-product-mgmt-action">
+            Record purchase
+          </Link>
+          <Link href="/admin/inventory/scan" className="inv-quick-chip">
+            Scan to sell
+          </Link>
+          <Link href="/admin/inventory/sales/new" className="inv-quick-chip">
+            New sale
+          </Link>
+        </div>
+        {summaryLoading && !summary ?
+          <div className="inv-product-mgmt-stats inv-product-mgmt-stats--loading" aria-busy="true">
+            <span className="inv-skeleton inv-skeleton-stat-card" />
+            <span className="inv-skeleton inv-skeleton-stat-card" />
+            <span className="inv-skeleton inv-skeleton-stat-card" />
+          </div>
+        : summary ?
+          <div className="inv-product-mgmt-stats">
+            <article className="inv-product-stat-card">
+              <span className="inv-product-stat-label">In catalog</span>
+              <strong>{summary.active_products}</strong>
+              <small>{summary.total_stock_qty} units on hand</small>
+            </article>
+            <button
+              type="button"
+              className={`inv-product-stat-card is-clickable${lowStockOnly ? " is-active" : ""}${summary.low_stock_count ? " is-warn" : ""}`}
+              onClick={focusLowStock}
+            >
+              <span className="inv-product-stat-label">Low stock alert</span>
+              <strong>{summary.low_stock_count}</strong>
+              <small>Tap to filter list</small>
+            </button>
+            <button
+              type="button"
+              className={`inv-product-stat-card is-clickable${outOfStockOnly ? " is-active" : ""}${summary.out_of_stock_count ? " is-danger" : ""}`}
+              onClick={focusOutOfStock}
+            >
+              <span className="inv-product-stat-label">Out of stock</span>
+              <strong>{summary.out_of_stock_count}</strong>
+              <small>Tap to filter list</small>
+            </button>
+            <article className="inv-product-stat-card">
+              <span className="inv-product-stat-label">Total sold</span>
+              <strong>{formatMoney(summary.total_units_sold)}</strong>
+              <small>
+                Today: {summary.sold_today_units} unit{summary.sold_today_units === 1 ? "" : "s"}
+                {summary.sold_today_count ? ` · ${summary.sold_today_count} sale(s)` : ""}
+              </small>
+            </article>
+            {summary.last_product ?
+              <Link href={`/admin/inventory/products/${summary.last_product.id}`} className="inv-product-stat-card is-link">
+                <span className="inv-product-stat-label">Last added</span>
+                <strong className="inv-product-stat-name">{summary.last_product.name}</strong>
+                <small>
+                  {summary.last_product.created_at ?
+                    new Date(summary.last_product.created_at).toLocaleDateString("en-IN", {
+                      day: "numeric",
+                      month: "short",
+                    })
+                  : "View product"}
+                  {" · "}
+                  {summary.last_product.qty_on_hand} in stock
+                </small>
+              </Link>
+            : null}
+          </div>
+        : null}
+      </section>
 
       {showSetupGuide ?
         <section className="admin-card inv-setup-guide">
@@ -356,7 +504,7 @@ export default function InventoryProductsApp() {
           <>
             <ul className="inv-product-cards inv-mobile-only" aria-label="Product list">
               {mobileProducts.map((p) => (
-                <ProductCard key={p.id} p={p} onDelete={deleteProduct} onLinkQr={openLinkQr} />
+                <ProductCard key={p.id} p={p} onDelete={deleteProduct} onLinkQr={openLinkQr} onAddStock={openAddStock} />
               ))}
             </ul>
 
@@ -416,13 +564,31 @@ export default function InventoryProductsApp() {
                         </td>
                         <td>{p.category_name || "—"}</td>
                         <td>{p.product_type === "serialized" ? "Serialized" : "Quantity"}</td>
-                        <td className={p.low_stock || p.out_of_stock ? "inv-stock-warn" : ""}>{p.qty_on_hand}</td>
+                        <td className={p.low_stock || p.out_of_stock ? "inv-stock-warn" : ""}>
+                          <span className="inv-stock-cell">
+                            {p.qty_on_hand}
+                            <button
+                              type="button"
+                              className="inv-stock-add-btn"
+                              title="Add stock"
+                              aria-label={`Add stock for ${p.name}`}
+                              onClick={(e) => openAddStock(p, e)}
+                            >
+                              +
+                            </button>
+                          </span>
+                        </td>
                         <td>₹ {formatMoney(p.selling_price)}</td>
                         <td>
                           <span className={`inv-status-pill ${st.className}`}>{st.text}</span>
                         </td>
                         <td className="inv-col-actions">
-                          <ProductRowActions product={p} onLinkQr={openLinkQr} onDelete={deleteProduct} />
+                          <ProductRowActions
+                            product={p}
+                            onLinkQr={openLinkQr}
+                            onAddStock={openAddStock}
+                            onDelete={deleteProduct}
+                          />
                         </td>
                       </tr>
                     );
@@ -463,6 +629,14 @@ export default function InventoryProductsApp() {
         onClose={() => setLinkProduct(null)}
         onLinked={() => loadProducts()}
       />
+
+      {stockProduct ?
+        <ProductAddStockModal
+          product={stockProduct}
+          onClose={() => setStockProduct(null)}
+          onSuccess={onStockUpdated}
+        />
+      : null}
     </div>
   );
 }
