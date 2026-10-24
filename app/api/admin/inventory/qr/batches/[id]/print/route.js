@@ -6,6 +6,8 @@ import { buildQrScanUrl, originFromRequest } from "@/lib/qr-code";
 import { buildQrBatchImages, buildQrBatchPdf, resolveStickerSize } from "@/lib/qr-label-pdf";
 import { isStaffUser } from "@/lib/roles";
 
+export const maxDuration = 120;
+
 async function requireStaff() {
   const user = await getSessionUser();
   if (!isStaffUser(user)) {
@@ -60,10 +62,11 @@ export async function GET(request, { params }) {
       sheet: layout.sheet.id,
       payloadForCode,
     });
+    const safeSheet = layout.sheet.id.replace(/[^a-z0-9_-]/gi, "");
     return new NextResponse(pdf, {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="qr-${layout.sheet.id}-${layout.id}-batch-${id}.pdf"`,
+        "Content-Disposition": `attachment; filename="qr-${safeSheet}-${layout.id}-batch-${id}.pdf"`,
       },
     });
   } catch (error) {

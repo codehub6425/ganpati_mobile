@@ -7852,6 +7852,97 @@ a.ledger-inline-link {
   pointer-events: none;
 }
 
+.inv-product-source-modal {
+  z-index: 115;
+}
+
+.inv-product-source-card {
+  max-width: 420px;
+  width: calc(100% - 24px);
+}
+
+.inv-product-source-lead {
+  margin: 0 18px 12px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #5b6170;
+}
+
+.inv-product-source-grid {
+  display: grid;
+  gap: 8px;
+  padding: 0 18px 18px;
+}
+
+.inv-product-source-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1.5px solid #e4e7ec;
+  border-radius: 12px;
+  background: #fff;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+
+.inv-product-source-option:hover:not(:disabled) {
+  border-color: #2563eb;
+  background: #f8fbff;
+}
+
+.inv-product-source-option:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.inv-product-source-icon {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: #f2f4f7 center / 22px no-repeat;
+}
+
+.inv-product-source-icon.is-camera-crop,
+.inv-product-source-icon.is-camera-full {
+  background-color: #eff6ff;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%232563eb' stroke-width='2'%3E%3Cpath d='M3 9a2 2 0 012-2h2l1-2h8l1 2h2a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z'/%3E%3Ccircle cx='12' cy='13' r='3'/%3E%3C/svg%3E");
+}
+
+.inv-product-source-icon.is-gallery-crop,
+.inv-product-source-icon.is-gallery-full {
+  background-color: #f0fdf4;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23047857' stroke-width='2'%3E%3Cpath d='M4 16l4-4 4 4 4-6 4 6'/%3E%3Crect x='3' y='5' width='18' height='14' rx='2'/%3E%3C/svg%3E");
+}
+
+.inv-product-source-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.inv-product-source-copy strong {
+  font-size: 14px;
+  font-weight: 800;
+  color: #111318;
+}
+
+.inv-product-source-copy small {
+  font-size: 12px;
+  font-weight: 600;
+  color: #667085;
+}
+
+.inv-product-crop-lead {
+  padding: 0 18px 8px;
+  margin: 0;
+  font-size: 13px;
+}
+
 .inv-product-image-error {
   margin: 8px 0 0;
   font-size: 13px;
@@ -9438,6 +9529,112 @@ a.ledger-inline-link {
   grid-template-columns: 1fr 1fr 1fr;
 }
 
+.inv-qr-choice-grid--sheets {
+  grid-template-columns: 1fr 1fr;
+}
+
+.inv-qr-custom-count {
+  margin-top: 8px;
+}
+
+.inv-qr-export-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.inv-qr-export-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 20;
+  min-width: 180px;
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid #e4e7ec;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  display: grid;
+  gap: 2px;
+}
+
+.inv-qr-export-menu button {
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.inv-qr-export-menu button:hover {
+  background: #f2f4f7;
+}
+
+.inv-qr-batch-actions {
+  flex-wrap: wrap;
+}
+
+.inv-qr-table-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.inv-qr-codes-card {
+  max-width: 720px;
+  width: calc(100% - 24px);
+}
+
+.inv-qr-codes-body {
+  padding: 0 18px 18px;
+  max-height: min(70vh, 520px);
+  overflow: auto;
+}
+
+.inv-qr-code-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.inv-qr-preview-card {
+  max-width: 360px;
+  width: calc(100% - 24px);
+}
+
+.inv-qr-preview-body {
+  padding: 0 18px 20px;
+  display: grid;
+  gap: 16px;
+  justify-items: center;
+}
+
+.inv-qr-preview-img {
+  width: min(280px, 100%);
+  height: auto;
+  border-radius: 12px;
+  border: 1px solid #e4e7ec;
+}
+
+.inv-qr-preview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  width: 100%;
+}
+
+.inv-text-btn.is-danger,
+.inv-card-action.is-danger {
+  color: #b42318;
+}
+
 .inv-qr-choice {
   display: grid;
   gap: 2px;
@@ -9517,6 +9714,10 @@ a.ledger-inline-link {
 
 @media (max-width: 420px) {
   .inv-qr-choice-grid--3 {
+    grid-template-columns: 1fr;
+  }
+
+  .inv-qr-choice-grid--sheets {
     grid-template-columns: 1fr;
   }
 }

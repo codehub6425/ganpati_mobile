@@ -5,16 +5,29 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiUrl } from "@/lib/basePath";
 import { resolveStickerSize } from "@/lib/qr-sticker-sizes";
 import ListSkeleton from "@/app/components/ListSkeleton";
-import { showError, showSuccess } from "@/lib/swal";
+import QrCodePreviewModal, { qrScanUrlForCode } from "@/app/components/QrCodePreviewModal";
+import { confirmAction, showError, showSuccess } from "@/lib/swal";
 
 const PRESETS = [50, 100, 500, 1000, 5000];
 const PAGE_SIZE = 10;
 const MOBILE_BATCH = 15;
 
 const SHEET_CARDS = [
-  { id: "press12x18", title: "Printing press", detail: "12×18 inch", hint: "Give the file to the printer" },
-  { id: "a4", title: "Shop printer", detail: "A4 paper", hint: "Print here and cut" },
+  { id: "press12x18", title: "Printing press", detail: "12×18 inch", hint: "Give PDF/PNG to printer" },
+  { id: "a4", title: "A4", detail: "Shop printer", hint: "Print and cut" },
+  { id: "a3", title: "A3 portrait", detail: "297×420 mm", hint: "Larger shop sheet" },
+  { id: "a3landscape", title: "A3 landscape", detail: "420×297 mm", hint: "Wide layout" },
 ];
+
+const QUICK_EXPORTS = [
+  { id: "press12x18", label: "12×18 PDF" },
+  { id: "a3", label: "A3 PDF" },
+  { id: "a3landscape", label: "A3 landscape PDF" },
+  { id: "a4", label: "A4 PDF" },
+  { id: "png", label: "PNG / ZIP", format: "png", sheet: "press12x18" },
+];
+
+const CODE_PAGE = 50;
 
 const SIZE_CARDS = [
   { id: "small", title: "Small", detail: "20 mm", hint: "Cables, earbuds" },
@@ -58,8 +71,17 @@ function ChoiceCard({ selected, title, detail, hint, onClick }) {
   );
 }
 
+function codeRangePreview(prefix, count) {
+  const p = String(prefix || "GMP").trim().toUpperCase() || "GMP";
+  const n = Math.min(5000, Math.max(1, Math.floor(Number(count) || 0)));
+  if (!n) return "";
+  const pad = (x) => String(x).padStart(6, "0");
+  return n === 1 ? `${p}-${pad(1)}` : `${p}-${pad(1)} … ${p}-${pad(n)}`;
+}
+
 function GenerateBatchModal({ open, prefix, count, busy, onClose, onPrefix, onCount, onSubmit }) {
   if (!open) return null;
+  const preview = codeRangePreview(prefix, count);
   return (
     <div className="admin-modal" role="dialog" aria-modal="true" aria-labelledby="inv-qr-gen-title">
       <button type="button" className="admin-modal-backdrop" onClick={onClose} aria-label="Close" />
@@ -94,12 +116,28 @@ function GenerateBatchModal({ open, prefix, count, busy, onClose, onPrefix, onCo
                 </button>
               ))}
             </div>
+            <label className="inv-qr-field inv-qr-custom-count">
+              <span>Custom quantity (1–5000)</span>
+              <input
+                type="number"
+                min={1}
+                max={5000}
+                step={1}
+                value={count}
+                onChange={(e) => {
+                  const n = Math.min(5000, Math.max(1, Math.floor(Number(e.target.value) || 0)));
+                  if (n) onCount(n);
+                }}
+              />
+            </label>
           </div>
           <label className="inv-qr-field">
             <span>Code prefix</span>
             <input value={prefix} onChange={(e) => onPrefix(e.target.value.toUpperCase())} maxLength={20} placeholder="GMP" />
           </label>
-          <p className="inv-qr-modal-note">Example: {prefix || "GMP"}-000001. Print size is chosen on download.</p>
+          <p className="inv-qr-modal-note">
+            {preview ? `Range: ${preview}` : "Enter quantity."} Print sheet size is chosen when you export.
+          </p>
           <div className="inv-qr-modal-actions">
             <button type="button" className="admin-btn admin-btn-secondary" onClick={onClose}>
               Cancel
@@ -140,7 +178,7 @@ function PrintSizeModal({ batch, size, sheet, format, onSize, onSheet, onFormat,
         >
           <div className="inv-qr-field">
             <span>1. Where will you print?</span>
-            <div className="inv-qr-choice-grid inv-qr-choice-grid--2">
+            <div className="inv-qr-choice-grid inv-qr-choice-grid--sheets">
               {SHEET_CARDS.map((card) => (
                 <ChoiceCard
                   key={card.id}
@@ -211,8 +249,160 @@ function PrintSizeModal({ batch, size, sheet, format, onSize, onSheet, onFormat,
   );
 }
 
-function BatchCard({ b, onPdf }) {
+function BatchExportMenu({ batch, labelSize, onQuickExport, onCustomPrint, open, onToggle }) {
+  return (
+    <div className="inv-qr-export-wrap">
+      <button type="button" className="inv-text-btn" onClick={onToggle} aria-expanded={open}>
+        Export ▾
+      </button>
+      {open ?
+        <div className="inv-qr-export-menu" role="menu">
+          {QUICK_EXPORTS.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                onQuickExport(batch, item.sheet || item.id, item.format || "pdf", labelSize);
+                onToggle();
+              }}
+            >
+              {item.label}
+            </button>
+          ))}
+          <button type="button" role="menuitem" onClick={() => { onCustomPrint(batch); onToggle(); }}>
+            More options…
+          </button>
+        </div>
+      : null}
+    </div>
+  );
+}
+
+function BatchCodesModal({ batch, onClose, onViewQr, onDeleteCode, onRefreshBatch }) {
+  const [units, setUnits] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [offset, setOffset] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  const loadPage = useCallback(
+    async (nextOffset = 0) => {
+      if (!batch?.id) return;
+      setLoading(true);
+      const qs = new URLSearchParams({
+        batch_id: String(batch.id),
+        limit: String(CODE_PAGE),
+        offset: String(nextOffset),
+      });
+      const res = await fetch(apiUrl(`/api/admin/inventory/qr/units?${qs}`), { credentials: "include" });
+      const data = await res.json();
+      if (data.ok) {
+        setUnits(data.units || []);
+        setTotal(data.total || 0);
+        setOffset(nextOffset);
+      }
+      setLoading(false);
+    },
+    [batch?.id]
+  );
+
+  useEffect(() => {
+    loadPage(0);
+  }, [loadPage]);
+
+  if (!batch) return null;
+
+  const pageNum = Math.floor(offset / CODE_PAGE) + 1;
+  const pageCount = Math.max(1, Math.ceil(total / CODE_PAGE));
+
+  return (
+    <div className="admin-modal" role="dialog" aria-modal="true" aria-labelledby="inv-qr-codes-title">
+      <button type="button" className="admin-modal-backdrop" onClick={onClose} aria-label="Close" />
+      <div className="admin-modal-card inv-qr-modal-card inv-qr-codes-card">
+        <header className="admin-modal-head">
+          <div>
+            <h3 id="inv-qr-codes-title">Codes in batch</h3>
+            <p>{formatRange(batch)}</p>
+          </div>
+          <button type="button" className="inv-modal-close-btn" onClick={onClose} aria-label="Close">
+            ×
+          </button>
+        </header>
+        <div className="inv-qr-codes-body">
+          {loading ?
+            <ListSkeleton variant="table" rows={6} />
+          : (
+            <>
+              <table className="inv-product-table inv-product-table--clean">
+                <thead>
+                  <tr>
+                    <th>Code</th>
+                    <th>Status</th>
+                    <th>Product</th>
+                    <th className="inv-col-actions">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {units.map((u) => (
+                    <tr key={u.id}>
+                      <td>
+                        <strong>{u.code}</strong>
+                      </td>
+                      <td>{u.status.replace("_", " ")}</td>
+                      <td>{u.product_name || "—"}</td>
+                      <td className="inv-col-actions inv-qr-code-actions">
+                        <button type="button" className="inv-text-btn" onClick={() => onViewQr(u.code)}>
+                          View QR
+                        </button>
+                        {u.status === "unassigned" && !u.is_linked ?
+                          <button
+                            type="button"
+                            className="inv-text-btn is-danger"
+                            onClick={async () => {
+                              await onDeleteCode(u.code);
+                              loadPage(offset);
+                              onRefreshBatch();
+                            }}
+                          >
+                            Delete
+                          </button>
+                        : null}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <footer className="inv-table-footer">
+                <span>
+                  {total ? `${offset + 1}–${Math.min(offset + CODE_PAGE, total)} of ${total}` : "No codes"}
+                </span>
+                <div className="inv-pagination">
+                  <button type="button" disabled={offset <= 0} onClick={() => loadPage(offset - CODE_PAGE)}>
+                    Prev
+                  </button>
+                  <span className="inv-page-num">
+                    {pageNum} / {pageCount}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={offset + CODE_PAGE >= total}
+                    onClick={() => loadPage(offset + CODE_PAGE)}
+                  >
+                    Next
+                  </button>
+                </div>
+              </footer>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BatchCard({ b, onPdf, onViewCodes, onDeleteBatch, onQuickExport, exportOpen, onToggleExport }) {
   const unused = Number(b.unassigned_count || 0);
+  const canDelete = unused === Number(b.count) && Number(b.count) > 0;
   return (
     <li className="inv-product-card inv-qr-batch-card">
       <div className="inv-product-card-main inv-qr-batch-main">
@@ -231,13 +421,23 @@ function BatchCard({ b, onPdf }) {
           </span>
         </div>
       </div>
-      <div className="inv-product-card-actions">
-        <button type="button" className="inv-card-action inv-card-action-primary" onClick={() => onPdf(b)}>
-          Print stickers
+      <div className="inv-product-card-actions inv-qr-batch-actions">
+        <button type="button" className="inv-card-action" onClick={() => onViewCodes(b)}>
+          View codes
         </button>
-        <Link href="/admin/inventory/stock/add" className="inv-card-action">
-          Link to product
-        </Link>
+        <BatchExportMenu
+          batch={b}
+          labelSize={b.label_size || "medium"}
+          open={exportOpen === b.id}
+          onToggle={() => onToggleExport(exportOpen === b.id ? null : b.id)}
+          onQuickExport={onQuickExport}
+          onCustomPrint={onPdf}
+        />
+        {canDelete ?
+          <button type="button" className="inv-card-action is-danger" onClick={() => onDeleteBatch(b)}>
+            Delete batch
+          </button>
+        : null}
       </div>
     </li>
   );
@@ -259,6 +459,10 @@ export default function InventoryQrManagementApp() {
   const [printFormat, setPrintFormat] = useState("pdf");
   const [page, setPage] = useState(1);
   const [mobileVisibleCount, setMobileVisibleCount] = useState(MOBILE_BATCH);
+  const [codesBatch, setCodesBatch] = useState(null);
+  const [previewCode, setPreviewCode] = useState("");
+  const [exportMenuId, setExportMenuId] = useState(null);
+  const [tableExportMenuId, setTableExportMenuId] = useState(null);
   const loadMoreRef = useRef(null);
 
   const load = useCallback(() => {
@@ -344,11 +548,65 @@ export default function InventoryQrManagementApp() {
     setPrintBatch(batch);
   }
 
+  function triggerDownload(batchId, stickerSize, sheetId, format) {
+    const q = new URLSearchParams({ size: stickerSize, sheet: sheetId, format });
+    window.open(apiUrl(`/api/admin/inventory/qr/batches/${batchId}/print?${q}`), "_blank");
+  }
+
   function downloadExport() {
     if (!printBatch) return;
-    const q = new URLSearchParams({ size: printSize, sheet: printSheet, format: printFormat });
-    window.open(apiUrl(`/api/admin/inventory/qr/batches/${printBatch.id}/print?${q}`), "_blank");
+    triggerDownload(printBatch.id, printSize, printSheet, printFormat);
     setPrintBatch(null);
+  }
+
+  function quickExport(batch, sheetId, format, stickerSize) {
+    const sz = stickerSize || batch.label_size || "medium";
+    triggerDownload(batch.id, sz, sheetId, format);
+  }
+
+  async function deleteUnitCode(code) {
+    const ok = await confirmAction({
+      title: "Delete unused code?",
+      text: `${code} will be removed permanently.`,
+      confirmText: "Delete",
+    });
+    if (!ok) return;
+    const res = await fetch(apiUrl(`/api/admin/inventory/qr/units?code=${encodeURIComponent(code)}`), {
+      method: "DELETE",
+      credentials: "include",
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      showError(data.message || "Could not delete.");
+      return;
+    }
+    showSuccess("Code removed.");
+    load();
+  }
+
+  async function deleteBatch(b) {
+    const canDelete = Number(b.unassigned_count) === Number(b.count);
+    if (!canDelete) {
+      showError("Only batches where every code is still unused can be deleted.");
+      return;
+    }
+    const ok = await confirmAction({
+      title: "Delete entire batch?",
+      text: `${formatRange(b)} — ${b.count} unused codes will be removed.`,
+      confirmText: "Delete batch",
+    });
+    if (!ok) return;
+    const res = await fetch(apiUrl(`/api/admin/inventory/qr/batches/${b.id}`), {
+      method: "DELETE",
+      credentials: "include",
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      showError(data.message || "Could not delete batch.");
+      return;
+    }
+    showSuccess("Batch deleted.");
+    load();
   }
 
   const showingFrom = batches.length ? (page - 1) * PAGE_SIZE + 1 : 0;
@@ -394,7 +652,7 @@ export default function InventoryQrManagementApp() {
         </li>
         <li>
           <strong>2. Print</strong>
-          <span>Press sheet or A4</span>
+          <span>12×18, A3, or A4 sheet</span>
         </li>
         <li>
           <strong>3. Scan</strong>
@@ -430,7 +688,16 @@ export default function InventoryQrManagementApp() {
           <>
             <ul className="inv-product-cards inv-mobile-only" aria-label="QR batches">
               {mobileItems.map((b) => (
-                <BatchCard key={b.id} b={b} onPdf={openPrint} />
+                <BatchCard
+                  key={b.id}
+                  b={b}
+                  onPdf={openPrint}
+                  onViewCodes={setCodesBatch}
+                  onDeleteBatch={deleteBatch}
+                  onQuickExport={quickExport}
+                  exportOpen={exportMenuId}
+                  onToggleExport={setExportMenuId}
+                />
               ))}
             </ul>
 
@@ -480,10 +747,26 @@ export default function InventoryQrManagementApp() {
                       <td>{b.in_stock_count}</td>
                       <td>{b.sold_count}</td>
                       <td>{formatDate(b.created_at) || "—"}</td>
-                      <td className="inv-col-actions">
-                        <button type="button" className="inv-text-btn" onClick={() => openPrint(b)}>
-                          Print
+                      <td className="inv-col-actions inv-qr-table-actions">
+                        <button type="button" className="inv-text-btn" onClick={() => setCodesBatch(b)}>
+                          Codes
                         </button>
+                        <BatchExportMenu
+                          batch={b}
+                          labelSize={b.label_size || "medium"}
+                          open={tableExportMenuId === b.id}
+                          onToggle={() => setTableExportMenuId(tableExportMenuId === b.id ? null : b.id)}
+                          onQuickExport={quickExport}
+                          onCustomPrint={openPrint}
+                        />
+                        <button type="button" className="inv-text-btn" onClick={() => openPrint(b)}>
+                          Customize
+                        </button>
+                        {Number(b.unassigned_count) === Number(b.count) ?
+                          <button type="button" className="inv-text-btn is-danger" onClick={() => deleteBatch(b)}>
+                            Delete
+                          </button>
+                        : null}
                       </td>
                     </tr>
                   ))}
@@ -543,6 +826,20 @@ export default function InventoryQrManagementApp() {
         onFormat={setPrintFormat}
         onClose={() => setPrintBatch(null)}
         onConfirm={downloadExport}
+      />
+
+      <BatchCodesModal
+        batch={codesBatch}
+        onClose={() => setCodesBatch(null)}
+        onViewQr={setPreviewCode}
+        onDeleteCode={deleteUnitCode}
+        onRefreshBatch={load}
+      />
+
+      <QrCodePreviewModal
+        code={previewCode}
+        scanUrl={previewCode ? qrScanUrlForCode(previewCode) : ""}
+        onClose={() => setPreviewCode("")}
       />
     </div>
   );

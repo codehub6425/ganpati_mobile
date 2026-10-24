@@ -46,6 +46,13 @@ function loadImage(src) {
   });
 }
 
+const PHOTO_SOURCES = [
+  { id: "camera-crop", label: "Take photo · crop", hint: "Camera, square crop", camera: true, crop: true },
+  { id: "camera-full", label: "Take photo · no crop", hint: "Camera, full frame", camera: true, crop: false },
+  { id: "gallery-crop", label: "Choose file · crop", hint: "Gallery, square crop", camera: false, crop: true },
+  { id: "gallery-full", label: "Choose file · no crop", hint: "Gallery, full image", camera: false, crop: false },
+];
+
 export default function ProductImageUpload({
   productId = null,
   stagingToken,
@@ -54,13 +61,15 @@ export default function ProductImageUpload({
   onChange,
   disabled = false,
 }) {
-  const fileRef = useRef(null);
+  const cameraRef = useRef(null);
+  const galleryRef = useRef(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickIntent, setPickIntent] = useState(null);
   const [cropOpen, setCropOpen] = useState(false);
   const [cropSrc, setCropSrc] = useState("");
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
-  const [useCrop, setUseCrop] = useState(true);
   const [pendingFile, setPendingFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
@@ -72,22 +81,41 @@ export default function ProductImageUpload({
     setCroppedAreaPixels(pixels);
   }, []);
 
-  function pickFile() {
+  function openPicker() {
     if (disabled || uploading) return;
-    fileRef.current?.click();
+    setPickerOpen(true);
   }
 
-  function onFileChange(event) {
+  function closePicker() {
+    setPickerOpen(false);
+  }
+
+  function startPick(option) {
+    setPickIntent({ crop: option.crop });
+    closePicker();
+    if (option.camera) cameraRef.current?.click();
+    else galleryRef.current?.click();
+  }
+
+  function onFileSelected(event) {
     const file = event.target.files?.[0];
     event.target.value = "";
+    const intent = pickIntent;
+    setPickIntent(null);
     if (!file) return;
+
     setError("");
-    setPendingFile(file);
-    const url = URL.createObjectURL(file);
-    setCropSrc(url);
-    setCropOpen(true);
-    setZoom(1);
-    setCrop({ x: 0, y: 0 });
+    if (intent?.crop) {
+      setPendingFile(file);
+      const url = URL.createObjectURL(file);
+      setCropSrc(url);
+      setCropOpen(true);
+      setZoom(1);
+      setCrop({ x: 0, y: 0 });
+      return;
+    }
+
+    void uploadBlob(file, null, true);
   }
 
   function closeCrop() {
@@ -137,7 +165,7 @@ export default function ProductImageUpload({
   async function confirmCrop() {
     if (!pendingFile) return;
     try {
-      if (useCrop && croppedAreaPixels) {
+      if (croppedAreaPixels) {
         const blob = await cropImageToBlob(cropSrc, croppedAreaPixels);
         await uploadBlob(blob, null, true);
       } else {
@@ -171,11 +199,21 @@ export default function ProductImageUpload({
         : <div className="inv-product-image-preview is-empty">No photo</div>}
 
         <div className="inv-product-image-upload-actions">
-          <button type="button" className="admin-btn admin-btn-secondary" disabled={disabled || uploading} onClick={pickFile}>
-            {uploading ? "Uploading…" : displayUrl ? "Change photo" : "Upload photo"}
+          <button
+            type="button"
+            className="admin-btn admin-btn-secondary"
+            disabled={disabled || uploading}
+            onClick={openPicker}
+          >
+            {uploading ? "Uploading…" : displayUrl ? "Change photo" : "Add photo"}
           </button>
           {displayUrl || storageKey ?
-            <button type="button" className="admin-btn admin-btn-secondary" disabled={disabled || uploading} onClick={removeImage}>
+            <button
+              type="button"
+              className="admin-btn admin-btn-secondary"
+              disabled={disabled || uploading}
+              onClick={removeImage}
+            >
               Remove
             </button>
           : null}
@@ -188,56 +226,87 @@ export default function ProductImageUpload({
         </p>
       : null}
 
-      <input ref={fileRef} type="file" accept="image/*" className="inv-product-image-file" onChange={onFileChange} />
+      <input
+        ref={cameraRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="inv-product-image-file"
+        onChange={onFileSelected}
+      />
+      <input
+        ref={galleryRef}
+        type="file"
+        accept="image/*"
+        className="inv-product-image-file"
+        onChange={onFileSelected}
+      />
+
+      {pickerOpen ?
+        <div className="admin-modal inv-product-source-modal" role="dialog" aria-modal="true" aria-label="Photo source">
+          <button type="button" className="admin-modal-backdrop" aria-label="Close" onClick={closePicker} />
+          <div className="admin-modal-card inv-product-source-card">
+            <div className="admin-modal-head">
+              <h3>Product photo</h3>
+              <button type="button" className="ledger-modal-close" onClick={closePicker} aria-label="Close">
+                ×
+              </button>
+            </div>
+            <p className="inv-product-source-lead">Pick how to add the image. All options save as compressed WebP.</p>
+            <div className="inv-product-source-grid">
+              {PHOTO_SOURCES.map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  className="inv-product-source-option"
+                  disabled={uploading}
+                  onClick={() => startPick(opt)}
+                >
+                  <span className={`inv-product-source-icon is-${opt.id}`} aria-hidden />
+                  <span className="inv-product-source-copy">
+                    <strong>{opt.label}</strong>
+                    <small>{opt.hint}</small>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      : null}
 
       {cropOpen ?
         <div className="admin-modal inv-product-crop-modal" role="dialog" aria-modal="true">
           <button type="button" className="admin-modal-backdrop" aria-label="Close" onClick={closeCrop} />
           <div className="admin-modal-card inv-product-crop-card">
             <div className="admin-modal-head">
-              <h3>Product photo</h3>
+              <h3>Crop photo</h3>
               <button type="button" className="ledger-modal-close" onClick={closeCrop} aria-label="Close">
                 ×
               </button>
             </div>
-            <div className="inv-product-crop-options">
-              <label className="inv-product-crop-toggle">
-                <input type="checkbox" checked={useCrop} onChange={(e) => setUseCrop(e.target.checked)} />
-                <span>Crop image (square)</span>
-              </label>
-              {!useCrop ?
-                <p className="admin-muted">Full image will be resized and compressed.</p>
-              : null}
+            <p className="admin-muted inv-product-crop-lead">Drag to frame the product. Saved as compressed WebP.</p>
+            <div className="inv-product-crop-area">
+              <Cropper
+                image={cropSrc}
+                crop={crop}
+                zoom={zoom}
+                aspect={1}
+                onCropChange={setCrop}
+                onZoomChange={setZoom}
+                onCropComplete={onCropComplete}
+              />
             </div>
-            {useCrop ?
-              <div className="inv-product-crop-area">
-                <Cropper
-                  image={cropSrc}
-                  crop={crop}
-                  zoom={zoom}
-                  aspect={1}
-                  onCropChange={setCrop}
-                  onZoomChange={setZoom}
-                  onCropComplete={onCropComplete}
-                />
-              </div>
-            : <div className="inv-product-crop-preview-only">
-                <img src={cropSrc} alt="" />
-              </div>
-            }
-            {useCrop ?
-              <label className="inv-product-crop-zoom">
-                <span>Zoom</span>
-                <input
-                  type="range"
-                  min="1"
-                  max="3"
-                  step="0.05"
-                  value={zoom}
-                  onChange={(e) => setZoom(Number(e.target.value))}
-                />
-              </label>
-            : null}
+            <label className="inv-product-crop-zoom">
+              <span>Zoom</span>
+              <input
+                type="range"
+                min="1"
+                max="3"
+                step="0.05"
+                value={zoom}
+                onChange={(e) => setZoom(Number(e.target.value))}
+              />
+            </label>
             <div className="inv-product-crop-foot">
               <button type="button" className="admin-btn admin-btn-secondary" onClick={closeCrop}>
                 Cancel

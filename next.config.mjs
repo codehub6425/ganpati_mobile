@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  serverExternalPackages: ["jspdf", "qrcode", "sharp"],
   async headers() {
     return [
       {

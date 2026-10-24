@@ -22,6 +22,7 @@ export async function GET(request) {
     const result = await listQrUnits(db, {
       status: params.get("status"),
       product_id: params.get("product_id"),
+      batch_id: params.get("batch_id"),
       search: params.get("search"),
       limit: params.get("limit"),
       offset: params.get("offset"),
